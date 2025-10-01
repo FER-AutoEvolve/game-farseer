@@ -206,7 +206,8 @@ class ApiServer:
                 raise HTTPException(status_code=500, detail="Missing OpenAI API key.")
 
             prompt = build_prompt(telemetry_summary, current_config, limits)
-            plan, narrative, _directive = await call_llm(prompt, api_key=api_key, model=model, temperature=temperature)
+            plan, narrative, directive = await call_llm(prompt, api_key=api_key, model=model, temperature=temperature)
+
 
             # 6) Append coefficients
             narrative_with_coeffs = self._append_coeffs_to_narrative(narrative, plan)
@@ -219,8 +220,10 @@ class ApiServer:
                 "based_on_level_id": based_on,
                 "new_level_id": new_id,
                 "objective": plan.objective,
+                "directive": directive,               
                 "narrative": narrative_with_coeffs,
             }
+
 
 
     def _load_local_config(self) -> dict:
