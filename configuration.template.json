@@ -1,0 +1,7 @@
+{
+    "host": "${HOST}",
+    "port": ${PORT},
+    "openai_api_key": "${OPENAI_API_KEY}",
+    "model": "${MODEL}",
+    "temperature": ${TEMPERATURE}
+}
