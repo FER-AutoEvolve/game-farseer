@@ -11,14 +11,12 @@ import pydantic
 from pydantic import Field
 
 from fastapi import FastAPI, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from core import Result, Unit              
 from level_design import build_prompt, call_llm, LLMPlan
 from configuration import FastApiConfiguration 
-
-
-app = FastAPI(title="Snake Auto-Designer API (LLM-driven)", version="2.1")
 
 
 def to_pascal_case(s: str) -> str:
@@ -57,8 +55,8 @@ class Telemetry:
     current_level_id: str | None = dataclasses.field(default=None) # ID of the level that was just played
     next_level_id: str | None = dataclasses.field(default=None)    # ID of the next level to be played (if known)
     max_food_available: int | None = dataclasses.field(default=None) #Total number of food items available in this level
-    start_time: datetime.datetime = dataclasses.field(default_factory=datetime.datetime.now()) # When the level started
-    end_time: datetime.datetime = dataclasses.field(default_factory=datetime.datetime.now())   # When the level ended
+    start_time: datetime.datetime = dataclasses.field(default_factory=datetime.datetime.now) # When the level started
+    end_time: datetime.datetime = dataclasses.field(default_factory=datetime.datetime.now)   # When the level ended
     average_time_to_food: float | None = dataclasses.field(default=None) # Average time in seconds between collecting food items
     score: int = dataclasses.field(default=0) # Final score achieved in the level
     total_food_collected: int = dataclasses.field(default=0) # Total number of food items collected
@@ -108,6 +106,12 @@ class ApiServer:
             Result[Unit]: Result indicating success or failure.
         '''
         try:
+            self._app.add_middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_methods=["*"],
+                allow_headers=["*"]
+            )
             self._define_endpoints()
             self._server = uvicorn.run(
                 self._app,
@@ -239,12 +243,23 @@ class ApiServer:
             based_on = t.current_level_id or "unknown"
             new_id = t.next_level_id or (f"{based_on}-next" if based_on != "unknown" else "next")
 
+            # 8) Send directive to Code Overseer (if configured)
+            overseer_result = self._send_directive_to_overseer(directive)
+            if overseer_result.is_err():
+                self._logger.warning(f"Failed to send directive to Code Overseer: {overseer_result.message}")
+                raise HTTPException(status_code=500, detail=f"Failed to send directive to Code Overseer: {overseer_result.message}")
+            else:
+                self._logger.info("Directive successfully sent to Code Overseer.")
+
             return {
-                "based_on_level_id": based_on,
-                "new_level_id": new_id,
-                "objective": plan.objective,
-                "directive": directive,               
-                "narrative": narrative_with_coeffs,
+                "status": "success",
+                "data": {
+                    "based_on_level_id": based_on,
+                    "new_level_id": new_id,
+                    "objective": plan.objective,
+                    "directive": directive,               
+                    "narrative": narrative_with_coeffs,
+                }
             }
 
 
@@ -295,6 +310,33 @@ class ApiServer:
             lines.append(f"- {self._format_coeff_line(action.target, action.mode, action.value)}")
         return "\n".join(lines).strip()
 
+    def _send_directive_to_overseer(self, directive: str) -> Result[Unit]:
+        '''
+        Sends the strategic directive to the Code Overseer service.
+        Args:
+            directive (str): The strategic directive to send.
+        Returns:
+            Result[Unit]: Result indicating success or failure.
+        '''
+        import requests
+
+        cfg = self._load_local_config()
+        overseer_url = cfg.get("code_overseer_url", "").strip()
+        if not overseer_url:
+            return Result.err("Code Overseer URL is not configured.")
+
+        try:
+            response = requests.post(
+                f"http://{overseer_url}/code_change",
+                json={ "ChangeStrategicDescription": f"{directive}" },
+                timeout=5
+            )
+            if response.status_code == 200:
+                return Result.ok(Unit())
+            else:
+                return Result.err(f"Overseer responded with status code {response.status_code}.")
+        except Exception as e:
+            return Result.err(f"Failed to send directive to Overseer: {e}")
 
 
 if __name__ == "__main__":
