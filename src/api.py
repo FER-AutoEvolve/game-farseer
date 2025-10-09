@@ -56,8 +56,9 @@ class Telemetry:
     '''
     current_level_id: str | None = dataclasses.field(default=None) # ID of the level that was just played
     next_level_id: str | None = dataclasses.field(default=None)    # ID of the next level to be played (if known)
-    start_time: datetime.datetime = dataclasses.field(default=datetime.datetime.now()) # When the level started
-    end_time: datetime.datetime = dataclasses.field(default=datetime.datetime.now())   # When the level ended
+    max_food_available: int | None = dataclasses.field(default=None) #Total number of food items available in this level
+    start_time: datetime.datetime = dataclasses.field(default_factory=datetime.datetime.now()) # When the level started
+    end_time: datetime.datetime = dataclasses.field(default_factory=datetime.datetime.now())   # When the level ended
     average_time_to_food: float | None = dataclasses.field(default=None) # Average time in seconds between collecting food items
     score: int = dataclasses.field(default=0) # Final score achieved in the level
     total_food_collected: int = dataclasses.field(default=0) # Total number of food items collected
@@ -75,6 +76,16 @@ class Telemetry:
     food_position: FoodPos | None = dataclasses.field(default=None)
     wall_pattern: WallPattern | None = dataclasses.field(default=None)
     wall_blocks: int = dataclasses.field(default=0)
+
+    @property
+    def food_completion_ratio(self) -> float | None:
+        """
+        Returns how much of the total food was collected (0.0–1.0),
+        or None if max_food_available is not provided.
+        """
+        if not self.max_food_available or self.max_food_available <= 0:
+            return None
+        return min(self.total_food_collected / self.max_food_available, 1.0)
 
 @dataclasses.dataclass(frozen=False)
 class ApiServer:
@@ -159,6 +170,15 @@ class ApiServer:
             except Exception:
                 duration_sec = 0.0
 
+            session_len_sec = duration_sec
+
+            food_per_min = None
+            if session_len_sec and session_len_sec > 0:
+                if t.total_food_collected:
+                    food_per_min = 60.0 * float(t.total_food_collected) / float(session_len_sec)
+                elif t.average_time_to_food and t.average_time_to_food > 0:
+                    food_per_min = 60.0 / float(t.average_time_to_food)
+
             # 2) Map telemetry for LLM
             telemetry_summary = {
                 "death_reason": t.death_cause.value if t.death_cause else None,
@@ -167,6 +187,9 @@ class ApiServer:
                 "score": t.score,
                 "food_collected": t.total_food_collected,
                 "avg_time_between_food_sec": t.average_time_to_food,
+                "food_per_min": food_per_min,                       # NOVO
+                "food_completion_ratio": t.food_completion_ratio,   # NOVO (property)
+                "max_food_available": t.max_food_available,         # NOVO
                 "turn_frequency": t.turn_frequency,
                 "total_turns": t.total_turns,
                 "total_distance_traveled": t.total_distance_traveled,

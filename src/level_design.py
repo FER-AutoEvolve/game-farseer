@@ -3,7 +3,7 @@
 # Vraća tri odjeljka: DIRECTIVE (1–2 rečenice), NARRATIVE (3–6 bulletsa), ACTIONS_JSON (strogi JSON).
 # Dozvoljene mete: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.
 # Napomene o završetku runde: nema “života”; runda završava uspjehom (time/food target) ili
-# neuspjehom (wall, self, poison-at-min-size, timeout, slaba efikasnost).
+# neuspjehom (wall, self, poison-at-min-size, timeout).
 # --------------------------------------------
 
 from __future__ import annotations
@@ -96,19 +96,19 @@ def _examples_block() -> List[Dict[str, Any]]:
         },
         {
             "when": "short sessions with low food; many edge/self collisions → navigation/timing issues",
-            "DIRECTIVE": "Reduce base speed by 10% and place food near walls to guide safer paths.",
+            "DIRECTIVE": "Reduce base speed by 10% and place food away from walls to minimize wall impacts.",
             "NARRATIVE": [
-                "Early failures suggest limited reaction margin.",
-                "Lower speed grants extra time for turns.",
-                "Near-wall food encourages controlled edge navigation.",
+                "Frequent wall collisions indicate poor edge control.",
+                "Lower speed improves reaction timing.",
+                "Far-wall food placement reduces direct risk zones."
             ],
             "ACTIONS_JSON": {
-                "objective": "EASIER",
-                "actions": [
-                    {"target": "snake_speed", "mode": "relative", "value": 0.9},
-                    {"target": "food_position", "mode": "set_enum", "value": "near_wall"},
-                ],
-                "rationale": "Guidance + time to think reduces early failures.",
+            "objective": "EASIER",
+            "actions": [
+            {"target": "snake_speed", "mode": "relative", "value": 0.9},
+            {"target": "food_position", "mode": "set_enum", "value": "far_from_wall"}
+            ],
+            "rationale": "Lower speed and central food reduce wall collision frequency."
             },
         },
         {
@@ -221,6 +221,8 @@ def build_prompt(
             "DIRECTIVE: 1–2 sentences, English, programmer-friendly.",
             "NARRATIVE: 3–6 bullet points, <= 600 chars total, reference telemetry (e.g., duration, food/min, collisions, death_reason=wall/self/poison/timeout).",
             "Allowed targets only: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.",
+            "Judge difficulty using derived metrics if present (food_per_min high/low, completion near 1.0).",
+            "Numbers in ACTIONS_JSON must be numbers (no quotes); enums are strings; no markdown fences.",
         ],
     }
 
@@ -248,11 +250,17 @@ def build_prompt(
 
     input_block = {
         "telemetry": telemetry_summary,
+        "derived": {
+            "food_per_min": telemetry_summary.get("food_per_min"),
+            "food_completion_ratio": telemetry_summary.get("food_completion_ratio"),
+            "max_food_available": telemetry_summary.get("max_food_available"),
+        },
         "current_config": current_config,
         "limits": limits,
         "allowed_targets": list(constraints["targets"].keys()),
         "notes": [
             "Decide objective from telemetry.",
+            "Use derived metrics if present (food_per_min, completion).",
             "At most 3 actions.",
             "Stay within limits; prefer smaller steps first.",
         ],
