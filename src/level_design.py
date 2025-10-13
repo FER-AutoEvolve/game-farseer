@@ -10,15 +10,20 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Tuple, Union
 import json
 import re
+import logging
+import time
 
 from pydantic import BaseModel, Field, ValidationError
 from fastapi import HTTPException
+from core import Result, Unit
 
 try:
     from openai import OpenAI  # OpenAI Python SDK v1.x
 except Exception:  # pragma: no cover
     OpenAI = None
 
+# --- module logger for LLM calls ---
+log = logging.getLogger(__name__)
 
 '''
 Allowed targets that the LLM is permitted to adjust
@@ -32,11 +37,10 @@ Target = Literal[
     "wall_blocks",
 ]
 
-Mode = Literal["relative", "absolute", "delta", "set_enum"]  #Available adjustment modes for each target
-Objective = Literal["HARDER", "EASIER", "TUNE"] #Possible overall difficulty directions inferred by the LLM
-FoodPos = Literal["normal", "near_wall", "far_from_wall"] #Possible food placement strategies
-WallPattern = Literal["random", "letter"] #Allowed styles for wall placement
-
+Mode = Literal["relative", "absolute", "delta", "set_enum"]  # Available adjustment modes for each target
+Objective = Literal["HARDER", "EASIER", "TUNE"]              # Possible overall difficulty directions inferred by the LLM
+FoodPos = Literal["normal", "near_wall", "far_from_wall"]    # Possible food placement strategies
+WallPattern = Literal["random", "letter"]                    # Allowed styles for wall placement
 
 class LLMAction(BaseModel):
     '''
@@ -103,12 +107,12 @@ def _examples_block() -> List[Dict[str, Any]]:
                 "Far-wall food placement reduces direct risk zones."
             ],
             "ACTIONS_JSON": {
-            "objective": "EASIER",
-            "actions": [
-            {"target": "snake_speed", "mode": "relative", "value": 0.9},
-            {"target": "food_position", "mode": "set_enum", "value": "far_from_wall"}
-            ],
-            "rationale": "Lower speed and central food reduce wall collision frequency."
+                "objective": "EASIER",
+                "actions": [
+                    {"target": "snake_speed", "mode": "relative", "value": 0.9},
+                    {"target": "food_position", "mode": "set_enum", "value": "far_from_wall"}
+                ],
+                "rationale": "Lower speed and central food reduce wall collision frequency."
             },
         },
         {
@@ -312,7 +316,8 @@ async def call_llm(
     api_key: str,
     model: str = "gpt-4.1",
     temperature: float = 0.5,
-) -> tuple[LLMPlan, str, str]:
+    request_id: str | None = None,
+) -> Result[tuple[LLMPlan, str, str]]:
     '''
     Sends the prepared prompt to the LLM via the OpenAI API and returns the parsed result.
     Args:
@@ -320,6 +325,7 @@ async def call_llm(
         api_key (str): The OpenAI API key for authentication.
         model (str, optional): The name of the LLM model to use (default: "gpt-4.1").
         temperature (float, optional): Sampling temperature to control output randomness (default: 0.5).
+        request_id (str | None, optional): An optional identifier for logging purposes.
     Returns:
         tuple[LLMPlan, str, str]: A tuple containing:
             - plan (LLMPlan): The validated action plan with difficulty objective and actions.
@@ -329,12 +335,21 @@ async def call_llm(
         HTTPException: If API key is missing, SDK is unavailable, or response parsing fails.
     '''
     if not api_key:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set.")
+        log.error("[req=%s] Missing API key", request_id)
+        return Result.err("OPENAI_API_KEY is not set.")
+        #raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set.")
     if OpenAI is None:
-        raise HTTPException(status_code=500, detail="OpenAI SDK is not installed. Run 'pip install openai'.")
-
+        log.error("[req=%s] OpenAI SDK not installed", request_id)
+        return Result.err("OpenAI SDK is not installed. Run 'pip install openai'.")
+        #raise HTTPException(status_code=500, detail="OpenAI SDK is not installed. Run 'pip install openai'.")
 
     client = OpenAI(api_key=api_key)
+
+    #log before LLM call
+    prompt_len = len(prompt) if isinstance(prompt, str) else 0
+    log.info("[req=%s] LLM request start model=%s temp=%.2f prompt_len=%d",
+             request_id, model, temperature, prompt_len)
+    t0 = time.perf_counter()
 
     try:
         resp = client.responses.create(
@@ -350,15 +365,26 @@ async def call_llm(
                 text = None
 
         if not text or not isinstance(text, str) or len(text.strip()) == 0:
-            raise HTTPException(status_code=502, detail="LLM returned empty text.")
+            dt = (time.perf_counter() - t0) * 1000
+            log.error("[req=%s] LLM empty output after %.1f ms", request_id, dt)
+            return Result.err("LLM returned empty text.")
+            #raise HTTPException(status_code=502, detail="LLM returned empty text.")
 
         directive, narrative, plan_dict = parse_llm_triplet(text)
         plan = LLMPlan.model_validate(plan_dict)  
-        return plan, narrative, directive
+        dt = (time.perf_counter() - t0) * 1000
+        out_len = len(text)
+        log.info("[req=%s] LLM ok objective=%s actions=%d out_len=%d (%.1f ms)",
+                 request_id, plan.objective, len(plan.actions), out_len, dt)
+        
+        return Result.ok((plan, narrative, directive))
 
     except (json.JSONDecodeError, ValidationError, ValueError) as e:
-        raise HTTPException(status_code=502, detail=f"Invalid LLM output: {e}")
-    except HTTPException:
-        raise
+        dt = (time.perf_counter() - t0) * 1000
+        log.error("[req=%s] LLM invalid output: %s (%.1f ms)", request_id, e, dt)
+        return Result.err(f"Invalid LLM output: {e}")
+
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"LLM request failed: {e}")
+        dt = (time.perf_counter() - t0) * 1000
+        log.exception("[req=%s] LLM request failed after %.1f ms: %s", request_id, dt, e)
+        return Result.err(f"LLM request failed: {e}")
