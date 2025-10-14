@@ -1,7 +1,9 @@
 {
-    "host": "${HOST}",
-    "port": ${PORT},
-    "openai_api_key": "${OPENAI_API_KEY}",
-    "model": "${MODEL}",
-    "temperature": ${TEMPERATURE}
+    "Host": "${HOST}",
+    "Port": ${PORT},
+    "OpenAiApiKey": "${OPEN_AI_API_KEY}",
+    "OpenAiModel": "${OPEN_AI_MODEL}",
+    "Temperature": ${TEMPERATURE},
+    "CodeOverseerConfigured": ${CODE_OVERSEER_CONFIGURED},
+    "CodeOverseerEndpoint": "${CODE_OVERSEER_ENDPOINT}"
 }

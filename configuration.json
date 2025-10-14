@@ -1,7 +1,9 @@
 {
-    "host": "0.0.0.0",
-    "port": 8000,
-    "openai_api_key": "",
-    "model": "gpt-4.1",
-    "temperature": 0.2
+    "Host": "0.0.0.0",
+    "Port": 8000,
+    "OpenAiApiKey": "",
+    "OpenAiModel": "gpt-4.1",
+    "Temperature": 0.2,
+    "CodeOverseerConfigured": true,
+    "CodeOverseerEndpoint": "http://localhost:3000/code_change"
 }

@@ -252,9 +252,9 @@ class ApiServer:
 
                 # 5) Build prompt and call LLM
                 cfg = self._load_local_config()
-                api_key = cfg.get("openai_api_key", "")
-                model = cfg.get("openai_model", "gpt-4.1")
-                temperature = float(cfg.get("openai_temperature", 0.5))
+                api_key = cfg.get("OpenAiApiKey", "")
+                model = cfg.get("OpenAiModel", "gpt-4.1")
+                temperature = float(cfg.get("OpenAiTemperature", 0.5))
 
                 if not api_key:
                         self._logger.error("[req=%s] Missing OpenAI API key", request_id)
@@ -342,21 +342,21 @@ class ApiServer:
             self._logger.warning("Config file not found at %s; relying on ENV/defaults", abs_path)
 
         # ENV override
-        if os.environ.get("OPENAI_API_KEY"):
-            cfg["openai_api_key"] = os.environ["OPENAI_API_KEY"]
+        if os.environ.get("OPEN_AI_API_KEY"):
+            cfg["OpenAiApiKey"] = os.environ["OPEN_AI_API_KEY"]
         if os.environ.get("OPENAI_MODEL"):
-            cfg["openai_model"] = os.environ["OPENAI_MODEL"]
-        if os.environ.get("CODE_OVERSEER_URL"):
-            cfg["code_overseer_url"] = os.environ["CODE_OVERSEER_URL"]
+            cfg["OpenAiModel"] = os.environ["OPENAI_MODEL"]
+        if os.environ.get("CODE_OVERSEER_ENDPOINT"):
+            cfg["CodeOverseerEndpoint"] = os.environ["CODE_OVERSEER_ENDPOINT"]
         if os.environ.get("OVERSEER_CONFIGURED"):
-            cfg["overseer_configured"] = os.environ["OVERSEER_CONFIGURED"].lower() in ("1", "true", "yes")
+            cfg["OverseerConfigured"] = os.environ["OVERSEER_CONFIGURED"].lower() in ("1", "true", "yes")
 
          
-        cfg.setdefault("openai_model", "gpt-4.1")
-        cfg.setdefault("openai_temperature", 0.5)
+        cfg.setdefault("OpenAiModel", "gpt-4.1")
+        cfg.setdefault("OpenAiTemperature", 0.5)
 
         # još jedan log: ima li API key nakon svega
-        self._logger.info("Config check: openai_api_key present = %s", "openai_api_key" in cfg and bool(cfg["openai_api_key"]))
+        self._logger.info("Config check: OpenAiApiKey present = %s", "OpenAiApiKey" in cfg and bool(cfg["OpenAiApiKey"]))
         return cfg
 
 
@@ -394,15 +394,15 @@ class ApiServer:
         import requests
 
         cfg = self._load_local_config()
-        overseer_url = cfg.get("code_overseer_url", "").strip()
-        if not overseer_url:
-            return Result.err("Code Overseer URL is not configured.")
+        overseer_endpoint = cfg.get("CodeOverseerEndpoint", "").strip()
+        if not overseer_endpoint:
+            return Result.err("Code Overseer Endpoint is not configured.")
 
         try:
             response = requests.post(
-                f"http://{overseer_url}/code_change",
+                f"{overseer_endpoint}",
                 json={ "ChangeStrategicDescription": f"{directive}" },
-                timeout=5
+                timeout=5000
             )
             if response.status_code == 200:
                 return Result.ok(Unit())
@@ -421,8 +421,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="configuration.local.json",
-        help="Putanja do JSON konfiguracijske datoteke (default: configuration.local.json)",
+        default="configuration.json",
+        help="Putanja do JSON konfiguracijske datoteke (default: configuration.json)",
     )
 
     args = parser.parse_args()
