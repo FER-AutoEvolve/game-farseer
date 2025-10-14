@@ -5,5 +5,5 @@
     "OpenAiModel": "gpt-4.1",
     "Temperature": 0.2,
     "CodeOverseerConfigured": true,
-    "CodeOverseerEndpoint": "http://localhost:3000/code_change"
+    "CodeOverseerEndpoint": "http://localhost:3000/code-change"
 }
