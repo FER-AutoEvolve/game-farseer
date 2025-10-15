@@ -6,6 +6,7 @@ import json
 import logging
 import argparse
 import os
+import threading
 import time
 import uuid
 from typing import Any, List
@@ -101,47 +102,58 @@ class ApiServer:
         title="Snake Auto-Designer API (LLM-driven)",
         version="2.1"
     ), init=False)
-    _server: Any = dataclasses.field(default=None)
+    _server: uvicorn.Server | None = dataclasses.field(default=None)
+    _server_thread: threading.Thread | None = dataclasses.field(default=None, init=False)
 
     def start_server(self) -> Result[Unit]:
         '''
-        Starts the FastAPI server.
+        Starts the FastAPI server in separate thread.
         Returns:
             Result[Unit]: Result indicating success or failure.
         '''
         try:
+            self._define_endpoints()
             self._app.add_middleware(
                 CORSMiddleware,
                 allow_origins=["*"],
                 allow_methods=["*"],
                 allow_headers=["*"]
             )
-            self._define_endpoints()
-            level_name = logging.getLevelName(self._logger.getEffectiveLevel()).lower()
-            self._server = uvicorn.run(
-                self._app,
-                host=self._apiConfiguration.host,
-                port=self._apiConfiguration.port,
-                log_level=level_name,
-                access_log=True,
-            )
+            server_config = uvicorn.Config(app=self._app, host=self._apiConfiguration.host, port=self._apiConfiguration.port, log_level=self._logger.level)
+            self._server = uvicorn.Server(config=server_config)
+            self._server_thread = threading.Thread(target=self._server.run, daemon=True)
+            self._server_thread.start()
             return Result.ok(Unit())
         except Exception as e:
-            self._logger.exception("Failed to start server")
             return Result.err(str(e))
-
-    def stop_server(self) -> Result[Unit]:
+        
+    def wait_for_server_to_stop(self) -> Result[Unit]:
         '''
-        Stops the FastAPI server.
+        Waits for the FastAPI server to stop.
         Returns:
             Result[Unit]: Result indicating success or failure.
         '''
         try:
-            if self._server:
-                self._server.stop()
+            if self._server_thread and self._server_thread.is_alive():
+                self._server_thread.join()
             return Result.ok(Unit())
         except Exception as e:
-            self._logger.error(f"Failed to stop server: {e}")
+            return Result.err(str(e))
+
+    def stop_server(self) -> Result[Unit]:
+        '''
+        Stops the FastAPI server
+        Returns:
+            Result[Unit]: Result indicating success or failure.
+        '''
+        try:
+            # stop the server
+            if self._server:
+                self._server.should_exit = True
+            if self._server_thread:
+                self._server_thread.join()
+            return Result.ok(Unit())
+        except Exception as e:
             return Result.err(str(e))
 
     def _define_endpoints(self) -> None:
@@ -441,3 +453,8 @@ if __name__ == "__main__":
     result = server.start_server()
     if result.is_err():
         print(f"Failed to start API server: {result.message}")
+
+    server.wait_for_server_to_stop()
+
+    logging.info("Server has stopped.")
+    logging.info("Exiting application.")
