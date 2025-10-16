@@ -5,5 +5,9 @@
     "OpenAiModel": "${OPEN_AI_MODEL}",
     "Temperature": ${TEMPERATURE},
     "CodeOverseerConfigured": ${CODE_OVERSEER_CONFIGURED},
-    "CodeOverseerEndpoint": "${CODE_OVERSEER_ENDPOINT}"
+    "CodeOverseerEndpoint": "${CODE_OVERSEER_ENDPOINT}",
+    "KeypointNotification": {
+        "Enabled": ${KEYPOINT_NOTIFICATION_ENABLED},
+        "Endpoint": "${KEYPOINT_NOTIFICATION_ENDPOINT}"
+    }
 }

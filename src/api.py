@@ -20,7 +20,8 @@ import uvicorn
 
 from core import Result, Unit              
 from level_design import build_prompt, call_llm, LLMPlan
-from configuration import FastApiConfiguration 
+from configuration import FastApiConfiguration
+import keypoint_notification
 
 
 def to_pascal_case(s: str) -> str:
@@ -97,7 +98,7 @@ class ApiServer:
     based on player telemetry and LLM-generated plans.
     '''
     _apiConfiguration: FastApiConfiguration
-    _logger: logging.Logger = dataclasses.field(default=logging.getLogger(__name__))
+    _logger: logging.Logger = dataclasses.field(default=logging.getLogger())
     _app: FastAPI = dataclasses.field(default_factory=lambda: FastAPI(
         title="Snake Auto-Designer API (LLM-driven)",
         version="2.1"
@@ -200,7 +201,7 @@ class ApiServer:
             request_id = str(uuid.uuid4())[:8]
             t0 = time.perf_counter()
             self._logger.info("[req=%s] suggest-level start", request_id)
-
+            self._logger.keypoint("Received game telemetry for level suggestion. Preparing prompt for directive...", event_type=keypoint_notification.EventTypes.INFO)
             try:
                 # 1) Calculate level duration
                 try:
@@ -273,6 +274,9 @@ class ApiServer:
                         return Result.err("Missing OpenAI API key.").__dict__
 
                 prompt = build_prompt(telemetry_summary, current_config, limits)
+
+                self._logger.keypoint("Prompt for directive built. Calling LLM to get strategic directive...", event_type=keypoint_notification.EventTypes.INFO)
+
                 llm_res = await call_llm(prompt, api_key=api_key, model=model, temperature=temperature, request_id=request_id)
                 if llm_res.is_err():
                     self._logger.error("[req=%s] LLM error: %s", request_id, llm_res.message)
@@ -282,6 +286,7 @@ class ApiServer:
                 self._logger.info("[req=%s] plan objective=%s actions=%d",
                                     request_id, plan.objective, len(plan.actions))
 
+                self._logger.keypoint(f"LLM call completed. Received the following directive: {directive}", event_type=keypoint_notification.EventTypes.SUCCESS)
 
                 # 6) Append coefficients
                 narrative_with_coeffs = self._append_coeffs_to_narrative(narrative, plan)
@@ -295,6 +300,8 @@ class ApiServer:
                 print(cfg)
                 overseer_configured = bool(cfg.get("overseer_configured", True))
                 
+                self._logger.keypoint("Sending the strategic directive to Code Overseer...", event_type=keypoint_notification.EventTypes.INFO)
+
                 overseer_result = self._send_directive_to_overseer(directive)
                 if overseer_result.is_err():
                     if overseer_configured:
@@ -302,8 +309,10 @@ class ApiServer:
                         return Result.err(f"Failed to send directive to Code Overseer: {overseer_result.message}").__dict__
                     else:
                         self._logger.warning("[req=%s] Overseer optional, continuing: %s", request_id, overseer_result.message)
+                    self._logger.keypoint(f"Failed to send directive to Code Overseer: {overseer_result.message}", event_type=keypoint_notification.EventTypes.FAILURE)
                 else:
                     self._logger.info("[req=%s] Overseer ok- directive successfully sent to Code Overseer.", request_id)
+                    self._logger.keypoint("Directive successfully sent to Code Overseer. My job is done!", event_type=keypoint_notification.EventTypes.SUCCESS)
 
                 payload = {
                         "based_on_level_id": based_on,
@@ -444,8 +453,16 @@ if __name__ == "__main__":
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%H:%M:%S",
     )
-    config = FastApiConfiguration(port=int(os.environ.get("PORT", 8000)), host="0.0.0.0")
-    server = ApiServer(config)
+    config_obj = json.loads(open(args.config, "r", encoding="utf-8").read())
+
+    fastapi_config = FastApiConfiguration(host=config_obj.get("Host", "0.0.0.0"), port=config_obj.get("Port", 8000))
+    keypoint_notification_config = keypoint_notification.KeypointNotificationConfiguration.from_dict(config_obj.get("KeypointNotification", {}))
+    if keypoint_notification_config.is_err():
+        logging.warning("KeypointNotification config error: %s", keypoint_notification_config.message)
+    else:
+        keypoint_notification.configure_keypoint_notifier(keypoint_notification_config.value)
+
+    server = ApiServer(fastapi_config)
     server._config_path = args.config  # save for reference
 
     logging.info("Starting server using config file: %s", args.config)

@@ -26,7 +26,10 @@ ARG HOST=0.0.0.0 \
     OPEN_AI_MODEL="gpt-4.1" \
     TEMPERATURE=0.7 \
     CODE_OVERSEER_CONFIGURED=true \
-    CODE_OVERSEER_ENDPOINT="http://path-to-overseer-endpoint:port/code-change"
+    CODE_OVERSEER_ENDPOINT="http://path-to-overseer-endpoint:port/code-change" \
+    KEYPOINT_NOTIFICATION_ENABLED="true" \
+    KEYPOINT_NOTIFICATION_ENDPOINT="http://game-web-wrapper:8001/notify-of-event"
+
 # Set environment variables for substitution
 ENV HOST=${HOST}
 ENV PORT=${PORT}
@@ -35,6 +38,8 @@ ENV OPEN_AI_MODEL=${OPEN_AI_MODEL}
 ENV TEMPERATURE=${TEMPERATURE}
 ENV CODE_OVERSEER_CONFIGURED=${CODE_OVERSEER_CONFIGURED}
 ENV CODE_OVERSEER_ENDPOINT=${CODE_OVERSEER_ENDPOINT}
+ENV KEYPOINT_NOTIFICATION_ENABLED=${KEYPOINT_NOTIFICATION_ENABLED}
+ENV KEYPOINT_NOTIFICATION_ENDPOINT=${KEYPOINT_NOTIFICATION_ENDPOINT}
 
 # Generate configuration.json from template
 RUN envsubst < /app/configuration.template.json > /app/configuration.json

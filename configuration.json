@@ -5,5 +5,9 @@
     "OpenAiModel": "gpt-4.1",
     "Temperature": 0.2,
     "CodeOverseerConfigured": true,
-    "CodeOverseerEndpoint": "http://localhost:3000/code-change"
+    "CodeOverseerEndpoint": "http://localhost:3000/code-change",
+    "KeypointNotification": {
+        "Enabled": true,
+        "Endpoint": "http://game-web-wrapper:8001/notify-of-event"
+    }
 }

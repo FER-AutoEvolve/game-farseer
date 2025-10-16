@@ -23,7 +23,7 @@ except Exception:  # pragma: no cover
     OpenAI = None
 
 # --- module logger for LLM calls ---
-log = logging.getLogger(__name__)
+log = logging.getLogger()
 
 '''
 Allowed targets that the LLM is permitted to adjust
