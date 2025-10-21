@@ -222,6 +222,7 @@ def build_prompt(
             "Return EXACTLY three sections in order: DIRECTIVE, NARRATIVE, ACTIONS_JSON.",
             "Use at most 3 actions.",
             "Stay within all limits; prefer incremental changes (no big spikes).",
+            "Choose engagement strategies from the provided list if raising difficulty is required.",
             "DIRECTIVE: 1–2 sentences, English, programmer-friendly.",
             "NARRATIVE: 3–6 bullet points, <= 600 chars total, reference telemetry (e.g., duration, food/min, collisions, death_reason=wall/self/poison/timeout).",
             "Allowed targets only: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.",
@@ -230,11 +231,18 @@ def build_prompt(
         ],
     }
 
+    engagement_strategies = [
+        "Add moving walls that shift position every 15 seconds to increase unpredictability.",
+        "Introduce power-up tiles (colored blue) that temporarily boost snake speed.",
+        "Produce power-up tiles (colored yellow) that increase the snake speed temporarily.",
+    ]
+
     header = (
         "You are a creative but bounded level designer for a Snake game.\n"
         "There are no 'lives'-a session ends by success (time/food target) or failure (wall, self, poison-at-min-size, timeout).\n"
         "Infer difficulty direction from telemetry (HARDER/EASIER/TUNE).\n"
         "You may modify ONLY: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.\n"
+        "Choose engagement strategies from the provided list if raising difficulty is required.\n"
         "Output format (exactly these sections):\n\n"
         "DIRECTIVE:\n"
         "- A single, actionable instruction (1–2 sentences, English) suitable for a programmer.\n\n"
@@ -256,17 +264,19 @@ def build_prompt(
         "telemetry": telemetry_summary,
         "derived": {
             "food_per_min": telemetry_summary.get("food_per_min"),
-            "food_completion_ratio": telemetry_summary.get("food_completion_ratio"),
+            "food_completion_ratio": telemetry_summary.get("food_completion_ratio"), 
             "max_food_available": telemetry_summary.get("max_food_available"),
         },
         "current_config": current_config,
         "limits": limits,
         "allowed_targets": list(constraints["targets"].keys()),
+        "engagement_strategies": engagement_strategies,
         "notes": [
             "Decide objective from telemetry.",
             "Use derived metrics if present (food_per_min, completion).",
             "At most 3 actions.",
             "Stay within limits; prefer smaller steps first.",
+            "Choose an engagement strategy in the directive if raising the difficulty is needed.",
         ],
     }
 

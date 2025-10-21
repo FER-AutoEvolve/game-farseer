@@ -71,7 +71,7 @@ class Telemetry:
     turn_frequency: float | None = dataclasses.field(default=None) # Average number of turns per minute
     death_cause: DeathCauses | None = dataclasses.field(default=None) # Cause of death if the level was failed
     path_efficiency: float | None = dataclasses.field(default=None)    # Ratio of optimal path length to actual path length (0.0 to 1.0)
-    is_level_successful: bool = dataclasses.field(default=False) # Whether the level was completed successfully
+    is_level_successfully_completed: bool = dataclasses.field(default=False) # Whether the level was completed successfully
     user_rated_difficulty: int | None = Field(default=None, ge=1, le=10) # 1-10 scale, 1 = easiest, 10 = hardest
     snake_speed: float | None = dataclasses.field(default=1.0)      # current snake speed
     obstacles_count: int | None = dataclasses.field(default=0)      # number of obstacles in the level
@@ -227,7 +227,7 @@ class ApiServer:
                 telemetry_summary = {
                     "death_reason": t.death_cause.value if t.death_cause else None,
                     "duration_sec": duration_sec,
-                    "success": t.is_level_successful,
+                    "success": t.is_level_successfully_completed,
                     "score": t.score,
                     "food_collected": t.total_food_collected,
                     "avg_time_between_food_sec": t.average_time_to_food,
