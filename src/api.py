@@ -80,6 +80,8 @@ class Telemetry:
     food_position: FoodPos | None = dataclasses.field(default=None)
     wall_pattern: WallPattern | None = dataclasses.field(default=None)
     wall_blocks: int = dataclasses.field(default=0)
+    level_tile_map: List[List[Any]] | None = dataclasses.field(default=None)  # 2D array representing the level's tile map
+    is_food_next_to_wall_at_death: bool | None = dataclasses.field(default=None) # Whether the food was next to a wall at the time of death
 
     @property
     def food_completion_ratio(self) -> float | None:
