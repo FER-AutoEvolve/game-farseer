@@ -80,7 +80,7 @@ class Telemetry:
     food_position: FoodPos | None = dataclasses.field(default=None)
     wall_pattern: WallPattern | None = dataclasses.field(default=None)
     wall_blocks: int = dataclasses.field(default=0)
-    level_tile_map: List[List[Any]] | None = dataclasses.field(default=None)  # 2D array representing the level's tile map
+    level_tile_map: List[List[str]] | None = dataclasses.field(default=None)  # 2D array representing the level's tile map
     is_food_next_to_wall_at_death: bool | None = dataclasses.field(default=None) # Whether the food was next to a wall at the time of death
 
     @property
@@ -92,6 +92,8 @@ class Telemetry:
         if not self.max_food_available or self.max_food_available <= 0:
             return None
         return min(self.total_food_collected / self.max_food_available, 1.0)
+    
+current_engagement_strategies = []
 
 @dataclasses.dataclass(frozen=False)
 class ApiServer:
@@ -240,9 +242,11 @@ class ApiServer:
                     "total_turns": t.total_turns,
                     "total_distance_traveled": t.total_distance_traveled,
                     "path_efficiency": t.path_efficiency,
-                    "user_rated_difficulty": t.user_rated_difficulty,
+                    "user_rated_difficulty": t.user_rated_difficulty,                # NOVO
+                    "is_food_next_to_wall_at_death": t.is_food_next_to_wall_at_death, # NOVO
                 }
 
+                global current_engagement_strategies
                 # 3) Current config
                 current_config = {
                     "snake_speed": t.snake_speed,
@@ -251,6 +255,8 @@ class ApiServer:
                     "food_position": (t.food_position.value if t.food_position else "normal"),
                     "wall_pattern": (t.wall_pattern.value if t.wall_pattern else "random"),
                     "wall_blocks": t.wall_blocks,
+                    "level_tile_map": t.level_tile_map,
+                    "current_engagement_strategies": current_engagement_strategies, 
                 }
 
                 # 4) Limits
@@ -287,6 +293,16 @@ class ApiServer:
                 plan, narrative, directive = llm_res.value
                 self._logger.info("[req=%s] plan objective=%s actions=%d",
                                     request_id, plan.objective, len(plan.actions))
+                
+                current_engagement_strategies = []
+                import re
+                # Find the engagement strategies in the directive by finding the pattern [ENGAGEMENT_STRATEGY:<strategy_key>,<strategy_key>,...]
+                selected_engagement_strategies = re.findall(r'\[ENGAGEMENT_STRATEGY:([^\]]+)\]', directive)
+                if selected_engagement_strategies:
+                    # Split the strategies by comma and strip whitespace
+                    for strategy_list in selected_engagement_strategies:
+                        strategies = [s.strip() for s in strategy_list.split(',')]
+                        current_engagement_strategies.extend(strategies)
 
                 self._logger.keypoint(f"LLM call completed. Received the following directive: {directive}", event_type=keypoint_notification.EventTypes.SUCCESS)
 

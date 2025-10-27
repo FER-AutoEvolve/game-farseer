@@ -228,14 +228,19 @@ def build_prompt(
             "Allowed targets only: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.",
             "Judge difficulty using derived metrics if present (food_per_min high/low, completion near 1.0).",
             "Numbers in ACTIONS_JSON must be numbers (no quotes); enums are strings; no markdown fences.",
+            "If you've selected any engagement strategy, mention the currently selected strategies in the DIRECTIVE section in the following format [ENGAGEMENT_STRATEGY:<strategy_key>,<strategy_key>,...]. Also include the engagement strategy description.",
         ],
     }
 
-    engagement_strategies = [
-        "Add moving walls that shift position every 15 seconds to increase unpredictability.",
-        "Introduce power-up tiles (colored blue) that temporarily boost snake speed.",
-        "Produce power-up tiles (colored yellow) that increase the snake speed temporarily.",
-    ]
+    available_engagement_strategies = {
+        "MOVING_WALLS":"Add moving walls that shift to any neighbouring position every 2 seconds to increase unpredictability.",
+        "POWER_UP_BLUE":"Introduce power-up tiles (colored blue) that gives 2 points in the score when collected and grows the snake by 2 body parts.",
+        "POWER_UP_YELLOW":"Produce power-up tiles (colored yellow) that increase the snake speed temporarily.",
+        "ADD_POISON":"Add poison tiles that spawn (colored red) and shrink the snake by 2 units and decrease the score by 2 upon contact, increasing risk.",
+        "REVERSE_SNAKE":"Implement a special tile (colored purple) that reverses the snake's direction upon contact. Its head becomes its tail and vice versa.",
+        "SOOTHING_FOOD":"Place soothing food items (colored light green) that slow down the snake speed temporarily when collected, allowing for more precise navigation.",
+        "DISSAPEARING_WALLS":"Incorporate disappearing walls (colored cyan) that vanish for 30 seconds every 10 seconds, creating temporary safe zones or hazards.",
+    }
 
     header = (
         "You are a creative but bounded level designer for a Snake game.\n"
@@ -270,13 +275,14 @@ def build_prompt(
         "current_config": current_config,
         "limits": limits,
         "allowed_targets": list(constraints["targets"].keys()),
-        "engagement_strategies": engagement_strategies,
+        "engagement_strategies": available_engagement_strategies,
         "notes": [
             "Decide objective from telemetry.",
             "Use derived metrics if present (food_per_min, completion).",
             "At most 3 actions.",
             "Stay within limits; prefer smaller steps first.",
             "Choose an engagement strategy in the directive if raising the difficulty is needed.",
+            "The level tile map symbols are: '#'=wall, '.'=empty, 'F'=food, 'H'=snake head, 'B'=snake body.",
         ],
     }
 
