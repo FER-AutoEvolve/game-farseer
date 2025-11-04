@@ -316,7 +316,7 @@ class ApiServer:
                 # 8) Send directive to Code Overseer (if configured)
                 cfg = self._load_local_config()
                 print(cfg)
-                overseer_configured = bool(cfg.get("overseer_configured", True))
+                overseer_configured = bool(cfg.get("CodeOverseerConfigured", True))
                 
                 self._logger.keypoint("Sending the strategic directive to Code Overseer...", event_type=keypoint_notification.EventTypes.INFO)
 

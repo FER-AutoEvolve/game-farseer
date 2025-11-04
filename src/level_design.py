@@ -68,7 +68,7 @@ class LLMPlan(BaseModel):
         LLMPlan: A validated Pydantic model with the overall objective and actions.
     '''
     objective: Objective
-    actions: List[LLMAction] = Field(min_length=1, max_length=3)
+    actions: List[LLMAction] = Field(min_length=0, max_length=3)
     rationale: str = Field(max_length=500)
 
 
@@ -218,17 +218,20 @@ def build_prompt(
             },
         },
         "global": [
-            "Decide objective (HARDER/EASIER/TUNE) solely from telemetry; do NOT ask.",
+           "Decide objective (HARDER/EASIER/TUNE) solely from telemetry; do NOT ask.",
             "Return EXACTLY three sections in order: DIRECTIVE, NARRATIVE, ACTIONS_JSON.",
             "Use at most 3 actions.",
             "Stay within all limits; prefer incremental changes (no big spikes).",
-            "Choose engagement strategies from the provided list if raising difficulty is required.",
             "DIRECTIVE: 1–2 sentences, English, programmer-friendly.",
             "NARRATIVE: 3–6 bullet points, <= 600 chars total, reference telemetry (e.g., duration, food/min, collisions, death_reason=wall/self/poison/timeout).",
             "Allowed targets only: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.",
             "Judge difficulty using derived metrics if present (food_per_min high/low, completion near 1.0).",
+            "When objective=HARDER (and optionally when TUNE), pick 1–2 keys from engagement_strategies.",
+            "Do not repeat engagement strategies listed in current_config.current_engagement_strategies.",
+            "If current_config.current_engagement_strategies is not empty, pick a different one for variety.",
+            "Never use 'none' as engagement strategy.",
+            "Include them in DIRECTIVE as [ENGAGEMENT_STRATEGY:KEY,...].",
             "Numbers in ACTIONS_JSON must be numbers (no quotes); enums are strings; no markdown fences.",
-            "If you've selected any engagement strategy, mention the currently selected strategies in the DIRECTIVE section in the following format [ENGAGEMENT_STRATEGY:<strategy_key>,<strategy_key>,...]. Also include the engagement strategy description.",
         ],
     }
 
