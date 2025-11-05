@@ -82,6 +82,8 @@ class Telemetry:
     wall_blocks: int = dataclasses.field(default=0)
     level_tile_map: List[List[str]] | None = dataclasses.field(default=None)  # 2D array representing the level's tile map
     is_food_next_to_wall_at_death: bool | None = dataclasses.field(default=None) # Whether the food was next to a wall at the time of death
+    average_riskiness: float | None = dataclasses.field(default=None)  # Average riskiness score during the level (near walls and body)
+    best_food_directness: float | None = dataclasses.field(default=None)  # Average directness to food during the level
 
     @property
     def food_completion_ratio(self) -> float | None:
@@ -244,6 +246,8 @@ class ApiServer:
                     "path_efficiency": t.path_efficiency,
                     "user_rated_difficulty": t.user_rated_difficulty,                # NOVO
                     "is_food_next_to_wall_at_death": t.is_food_next_to_wall_at_death, # NOVO
+                    "average_riskiness": t.average_riskiness,              # NOVO
+                    "best_food_directness": t.best_food_directness,        # NOVO
                 }
 
                 global current_engagement_strategies
