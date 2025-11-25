@@ -1,9 +1,9 @@
 # --------------------------------------------
 # LLM SAM odlučuje treba li HARDER/EASIER/TUNE isključivo iz telemetrije.
 # Vraća tri odjeljka: DIRECTIVE (1–2 rečenice), NARRATIVE (3–6 bulletsa), ACTIONS_JSON (strogi JSON).
-# Dozvoljene mete: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.
+# Dozvoljene mete: snake_speed, obstacles_count, food_position, wall_pattern, wall_blocks.
 # Napomene o završetku runde: nema “života”; runda završava uspjehom (time/food target) ili
-# neuspjehom (wall, self, poison-at-min-size, timeout).
+# neuspjehom (wall, self, timeout).
 # --------------------------------------------
 
 from __future__ import annotations
@@ -31,7 +31,6 @@ Allowed targets that the LLM is permitted to adjust
 Target = Literal[
     "snake_speed",
     "obstacles_count",
-    "poison_count",
     "food_position",
     "wall_pattern",
     "wall_blocks",
@@ -117,37 +116,19 @@ def _examples_block() -> List[Dict[str, Any]]:
         },
         {
             "when": "steady completions at moderate pace; gameplay feels monotonous",
-            "DIRECTIVE": "Add an 8-block random wall; keep speed unchanged; add one poison.",
+            "DIRECTIVE": "Add an 8-block random wall; keep speed unchanged",
             "NARRATIVE": [
                 "Stable performance allows lateral variety.",
                 "Short random wall adds fresh routing decisions.",
-                "A single poison adds zoning without big spike.",
+                "Maintaining speed preserves overall pacing.",
             ],
             "ACTIONS_JSON": {
                 "objective": "TUNE",
                 "actions": [
                     {"target": "wall_pattern", "mode": "set_enum", "value": "random"},
                     {"target": "wall_blocks", "mode": "absolute", "value": 8},
-                    {"target": "poison_count", "mode": "delta", "value": 1},
                 ],
                 "rationale": "Variety injection with minimal pace change.",
-            },
-        },
-        {
-            "when": "poison spiral: snake often at minimal length then hits poison again; food/min is low",
-            "DIRECTIVE": "Decrease poison count by 1 and reduce obstacle count by 1 to open recovery space.",
-            "NARRATIVE": [
-                "Repeated shrink events stall progress.",
-                "Fewer poisons lower accidental relapse.",
-                "Less clutter opens safer recovery routes.",
-            ],
-            "ACTIONS_JSON": {
-                "objective": "EASIER",
-                "actions": [
-                    {"target": "poison_count", "mode": "delta", "value": -1},
-                    {"target": "obstacles_count", "mode": "delta", "value": -1},
-                ],
-                "rationale": "Reduce relapse traps and enable rebuild.",
             },
         },
         {
@@ -198,12 +179,6 @@ def build_prompt(
                     "absolute": f"integer in [{int(limits['obstacles_count']['min'])}, {int(limits['obstacles_count']['max'])}]",
                 }
             },
-            "poison_count": {
-                "modes": {
-                    "delta": f"integer step in [{int(limits['poison_count']['delta_min'])}, {int(limits['poison_count']['delta_max'])}]",
-                    "absolute": f"integer in [{int(limits['poison_count']['min'])}, {int(limits['poison_count']['max'])}]",
-                }
-            },
             "food_position": {
                 "modes": {"set_enum": "one of ['normal','near_wall','far_from_wall']"}
             },
@@ -223,8 +198,8 @@ def build_prompt(
             "Use at most 3 actions.",
             "Stay within all limits; prefer incremental changes (no big spikes).",
             "DIRECTIVE: 1–2 sentences, English, programmer-friendly.",
-            "NARRATIVE: 3–6 bullet points, <= 600 chars total, reference telemetry (e.g., duration, food/min, collisions, death_reason=wall/self/poison/timeout).",
-            "Allowed targets only: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.",
+            "NARRATIVE: 3–6 bullet points, <= 600 chars total, reference telemetry (e.g., duration, food/min, collisions, death_reason=wall/self/timeout).",
+            "Allowed targets only: snake_speed, obstacles_count, food_position, wall_pattern, wall_blocks.",
             "Judge difficulty using derived metrics if present (food_per_min high/low, completion near 1.0).",
             "When objective=HARDER (and optionally when TUNE), pick 1–2 keys from engagement_strategies.",
             "Do not repeat engagement strategies listed in current_config.current_engagement_strategies.",
@@ -247,9 +222,9 @@ def build_prompt(
 
     header = (
         "You are a creative but bounded level designer for a Snake game.\n"
-        "There are no 'lives'-a session ends by success (time/food target) or failure (wall, self, poison-at-min-size, timeout).\n"
+        "There are no 'lives'-a session ends by success (time/food target) or failure (wall, self, timeout).\n"
         "Infer difficulty direction from telemetry (HARDER/EASIER/TUNE).\n"
-        "You may modify ONLY: snake_speed, obstacles_count, poison_count, food_position, wall_pattern, wall_blocks.\n"
+        "You may modify ONLY: snake_speed, obstacles_count, food_position, wall_pattern, wall_blocks.\n"
         "Choose engagement strategies from the provided list if raising difficulty is required.\n"
         "Output format (exactly these sections):\n\n"
         "DIRECTIVE:\n"
