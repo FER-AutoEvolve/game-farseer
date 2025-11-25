@@ -277,19 +277,17 @@ class ApiServer:
 
                 # 5) Build prompt and call LLM
                 cfg = self._load_local_config()
-                api_key = cfg.get("OpenAiApiKey", "")
-                model = cfg.get("OpenAiModel", "gpt-4.1")
-                temperature = float(cfg.get("OpenAiTemperature", 0.5))
-
-                if not api_key:
-                        self._logger.error("[req=%s] Missing OpenAI API key", request_id)
-                        return Result.err("Missing OpenAI API key.").__dict__
+                api_key = cfg["Llm"].get("ApiKey", "")
+                model = cfg["Llm"].get("Model", "gpt-4.1")
+                url = cfg["Llm"].get("Url", "")
+                headers = cfg["Llm"].get("Headers", {})
+                temperature = float(cfg["Llm"].get("Temperature", 0.5))
 
                 prompt = build_prompt(telemetry_summary, current_config, limits)
 
                 self._logger.keypoint("Prompt for directive built. Calling LLM to get strategic directive...", event_type=keypoint_notification.EventTypes.INFO)
 
-                llm_res = await call_llm(prompt, api_key=api_key, model=model, temperature=temperature, request_id=request_id)
+                llm_res = await call_llm(prompt, url=url, api_key=api_key, model=model, temperature=temperature, headers=headers, request_id=request_id)
                 if llm_res.is_err():
                     self._logger.error("[req=%s] LLM error: %s", request_id, llm_res.message)
                     return Result.err(llm_res.message).__dict__
@@ -383,23 +381,7 @@ class ApiServer:
                 cfg = {}
         else:
             self._logger.warning("Config file not found at %s; relying on ENV/defaults", abs_path)
-
-        # ENV override
-        if os.environ.get("OPEN_AI_API_KEY"):
-            cfg["OpenAiApiKey"] = os.environ["OPEN_AI_API_KEY"]
-        if os.environ.get("OPENAI_MODEL"):
-            cfg["OpenAiModel"] = os.environ["OPENAI_MODEL"]
-        if os.environ.get("CODE_OVERSEER_ENDPOINT"):
-            cfg["CodeOverseerEndpoint"] = os.environ["CODE_OVERSEER_ENDPOINT"]
-        if os.environ.get("OVERSEER_CONFIGURED"):
-            cfg["OverseerConfigured"] = os.environ["OVERSEER_CONFIGURED"].lower() in ("1", "true", "yes")
-
-         
-        cfg.setdefault("OpenAiModel", "gpt-4.1")
-        cfg.setdefault("OpenAiTemperature", 0.5)
-
-        # još jedan log: ima li API key nakon svega
-        self._logger.info("Config check: OpenAiApiKey present = %s", "OpenAiApiKey" in cfg and bool(cfg["OpenAiApiKey"]))
+        
         return cfg
 
 

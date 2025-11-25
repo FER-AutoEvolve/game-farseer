@@ -1,9 +1,15 @@
 {
     "Host": "0.0.0.0",
     "Port": 8000,
-    "OpenAiApiKey": "",
-    "OpenAiModel": "gpt-4.1",
-    "Temperature": 0.2,
+    "Llm": {
+        "ApiKey": "",
+        "Url": "",
+        "Model": "gpt-4.1",
+        "Temperature": 0.2,
+        "Headers": {
+            "Authorization": "Bearer YOUR_KEY"
+        }
+    },
     "CodeOverseerConfigured": true,
     "CodeOverseerEndpoint": "http://localhost:3000/code-change",
     "KeypointNotification": {

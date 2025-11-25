@@ -332,8 +332,10 @@ def parse_llm_triplet(text: str) -> Tuple[str, str, dict]:
 
 async def call_llm(
     prompt: str,
-    api_key: str,
-    model: str = "gpt-4.1",
+    model: str,
+    url: str|None = None,
+    api_key: str|None = None,
+    headers: Dict[str, str]|None = None,
     temperature: float = 0.5,
     request_id: str | None = None,
 ) -> Result[tuple[LLMPlan, str, str]]:
@@ -353,16 +355,8 @@ async def call_llm(
     Raises:
         HTTPException: If API key is missing, SDK is unavailable, or response parsing fails.
     '''
-    if not api_key:
-        log.error("[req=%s] Missing API key", request_id)
-        return Result.err("OPENAI_API_KEY is not set.")
-        #raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set.")
-    if OpenAI is None:
-        log.error("[req=%s] OpenAI SDK not installed", request_id)
-        return Result.err("OpenAI SDK is not installed. Run 'pip install openai'.")
-        #raise HTTPException(status_code=500, detail="OpenAI SDK is not installed. Run 'pip install openai'.")
 
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, base_url=url, default_headers=headers)
 
     #log before LLM call
     prompt_len = len(prompt) if isinstance(prompt, str) else 0
