@@ -75,7 +75,6 @@ class Telemetry:
     user_rated_difficulty: int | None = Field(default=None, ge=1, le=10) # 1-10 scale, 1 = easiest, 10 = hardest
     snake_speed: float | None = dataclasses.field(default=1.0)      # current snake speed
     obstacles_count: int | None = dataclasses.field(default=0)      # number of obstacles in the level
-    poison_count: int | None = dataclasses.field(default=0)         # number of poison items on the map
     #ovo sam dodala!!!
     food_position: FoodPos | None = dataclasses.field(default=None)
     wall_pattern: WallPattern | None = dataclasses.field(default=None)
@@ -255,7 +254,6 @@ class ApiServer:
                 current_config = {
                     "snake_speed": t.snake_speed,
                     "obstacles_count": t.obstacles_count,
-                    "poison_count": t.poison_count,
                     "food_position": (t.food_position.value if t.food_position else "normal"),
                     "wall_pattern": (t.wall_pattern.value if t.wall_pattern else "random"),
                     "wall_blocks": t.wall_blocks,
@@ -267,8 +265,6 @@ class ApiServer:
                 limits = {
                     "snake_speed": {"min": 0.6, "max": 2.0, "rel_min": 0.85, "rel_max": 1.15},
                     "obstacles_count": {"min": 0, "max": 30, "delta_min": -3, "delta_max": 3},
-                    "poison_count": {"min": 0, "max": 10, "delta_min": -3, "delta_max": 3},
-
                     # nova polja
                     "food_position": {"enum": ["normal", "near_wall", "far_from_wall"]},
                     "wall_pattern": {"enum": ["random", "letter"]},
