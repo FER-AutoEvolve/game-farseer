@@ -1,13 +1,20 @@
 {
     "Host": "${HOST}",
     "Port": ${PORT},
-    "OpenAiApiKey": "${OPEN_AI_API_KEY}",
-    "OpenAiModel": "${OPEN_AI_MODEL}",
-    "Temperature": ${TEMPERATURE},
     "CodeOverseerConfigured": ${CODE_OVERSEER_CONFIGURED},
     "CodeOverseerEndpoint": "${CODE_OVERSEER_ENDPOINT}",
     "KeypointNotification": {
-        "Enabled": ${KEYPOINT_NOTIFICATION_ENABLED},
+        "Enabled": ${KEYPOINT_NOTIFICATION_ENABLED
+        },
         "Endpoint": "${KEYPOINT_NOTIFICATION_ENDPOINT}"
+    },
+    "Llm": {
+        "ApiKey": "${LLM_API_KEY}",
+        "Url": "${LLM_URL}",
+        "Model": "${LLM_MODEL}",
+        "Temperature": ${LLM_TEMPERATURE},
+        "Headers": {
+            ${LLM_HEADERS}
+        }
     }
 }
