@@ -4,8 +4,7 @@
     "CodeOverseerConfigured": ${CODE_OVERSEER_CONFIGURED},
     "CodeOverseerEndpoint": "${CODE_OVERSEER_ENDPOINT}",
     "KeypointNotification": {
-        "Enabled": ${KEYPOINT_NOTIFICATION_ENABLED
-        },
+        "Enabled": ${KEYPOINT_NOTIFICATION_ENABLED},
         "Endpoint": "${KEYPOINT_NOTIFICATION_ENDPOINT}"
     },
     "Llm": {
