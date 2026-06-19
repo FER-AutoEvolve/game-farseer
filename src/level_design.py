@@ -64,8 +64,8 @@ _DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
     PromptingModels.GPT_OSS_20B: "openai/gpt-oss-20b",
     PromptingModels.GPT_OSS_120B: "openai/gpt-oss-120b",
     PromptingModels.QWEN_CODER_30B: "qwen/qwen-coder-30b",
-    PromptingModels.GEMMA_4_31B_QAT: "gemma/gemma-4-31b-qat",
-    PromptingModels.GEMMA_4_26B_A4B_QAT: "gemma/gemma-4-26b-a4b-qat",
+    PromptingModels.GEMMA_4_31B_QAT: "google/gemma-4-31b-qat",
+    PromptingModels.GEMMA_4_26B_A4B_QAT: "google/gemma-4-26b-a4b-qat",
     PromptingModels.QWEN_3_6_35B_A3B: "qwen/qwen3.6-35b-a3b",
     PromptingModels.QWEN_3_6_27B: "qwen/qwen3.6-27b",
 }
