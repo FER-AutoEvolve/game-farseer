@@ -278,6 +278,7 @@ class ApiServer:
                 url = cfg["Llm"].get("Url", "")
                 headers = cfg["Llm"].get("Headers", {})
                 temperature = float(cfg["Llm"].get("Temperature", 0.5))
+                timeout_seconds = float(cfg["Llm"].get("TimeoutSeconds", 120.0))
 
                 prompt = build_prompt(telemetry_summary, current_config, limits)
 
@@ -289,6 +290,7 @@ class ApiServer:
                     api_key=api_key,
                     model=model,
                     temperature=temperature,
+                    timeout_seconds=timeout_seconds,
                     headers=headers,
                     request_id=request_id,
                 )

@@ -7,6 +7,7 @@
         "Url": "",
         "Model": "gpt-4.1",
         "Temperature": 0.2,
+        "TimeoutSeconds": 120,
         "Headers": {
             "Authorization": "Bearer YOUR_KEY"
         }

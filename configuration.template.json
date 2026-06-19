@@ -13,6 +13,7 @@
         "Url": "${LLM_URL}",
         "Model": "${LLM_MODEL}",
         "Temperature": ${LLM_TEMPERATURE},
+        "TimeoutSeconds": ${LLM_TIMEOUT_SECONDS},
         "Headers": {
             ${LLM_HEADERS}
         }

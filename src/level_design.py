@@ -407,6 +407,7 @@ async def call_llm(
     api_key: str|None = None,
     headers: Dict[str, str]|None = None,
     temperature: float = 0.5,
+    timeout_seconds: float = 120.0,
     request_id: str | None = None,
 ) -> Result[tuple[LLMPlan, str, str]]:
     '''
@@ -428,12 +429,13 @@ async def call_llm(
 
     model_name = model.get_model_name()
 
-    client = OpenAI(api_key=api_key, base_url=url, default_headers=headers, timeout=120)
+    timeout_seconds = max(1.0, float(timeout_seconds))
+    client = OpenAI(api_key=api_key, base_url=url, default_headers=headers, timeout=timeout_seconds)
 
     #log before LLM call
     prompt_len = len(prompt) if isinstance(prompt, str) else 0
-    log.info("[req=%s] LLM request start model=%s temp=%.2f prompt_len=%d",
-             request_id, model_name, temperature, prompt_len)
+    log.info("[req=%s] LLM request start model=%s temp=%.2f timeout=%.1fs prompt_len=%d",
+             request_id, model_name, temperature, timeout_seconds, prompt_len)
     t0 = time.perf_counter()
 
     try:
