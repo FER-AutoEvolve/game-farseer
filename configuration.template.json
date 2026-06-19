@@ -8,6 +8,7 @@
         "Endpoint": "${KEYPOINT_NOTIFICATION_ENDPOINT}"
     },
     "Llm": {
+        "Provider": "${LLM_PROVIDER}",
         "ApiKey": "${LLM_API_KEY}",
         "Url": "${LLM_URL}",
         "Model": "${LLM_MODEL}",

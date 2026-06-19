@@ -12,6 +12,7 @@ import json
 import re
 import logging
 import time
+from enum import Enum
 
 from pydantic import BaseModel, Field, ValidationError
 from fastapi import HTTPException
@@ -40,6 +41,100 @@ Mode = Literal["relative", "absolute", "delta", "set_enum"]  # Available adjustm
 Objective = Literal["HARDER", "EASIER", "TUNE"]              # Possible overall difficulty directions inferred by the LLM
 FoodPos = Literal["normal", "near_wall", "far_from_wall"]    # Possible food placement strategies
 WallPattern = Literal["random", "letter"]                    # Allowed styles for wall placement
+
+
+class PromptingModels(Enum):
+    ''' Enumeration of supported LLM providers.'''
+    OPENAI = "openai"
+    GPT_OSS_20B = "gpt_oss_20b"
+    GPT_OSS_120B = "gpt_oss_120b"
+    QWEN_CODER_30B = "qwen_coder_30b"
+    GEMMA_4_31B_QAT = "gemma_4_31b_qat"
+    GEMMA_4_26B_A4B_QAT = "gemma_4_26b_a4b_qat"
+    QWEN_3_6_35B_A3B = "qwen_3_6_35b_a3b"
+    QWEN_3_6_27B = "qwen_3_6_27b"
+
+    def get_model_name(self) -> str:
+        '''Returns the default model name for the given provider.'''
+        return _DEFAULT_PROMPTING_MODELS.get(self)
+
+
+_DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
+    PromptingModels.OPENAI: "gpt-4.1",
+    PromptingModels.GPT_OSS_20B: "openai/gpt-oss-20b",
+    PromptingModels.GPT_OSS_120B: "openai/gpt-oss-120b",
+    PromptingModels.QWEN_CODER_30B: "qwen/qwen-coder-30b",
+    PromptingModels.GEMMA_4_31B_QAT: "gemma/gemma-4-31b-qat",
+    PromptingModels.GEMMA_4_26B_A4B_QAT: "gemma/gemma-4-26b-a4b-qat",
+    PromptingModels.QWEN_3_6_35B_A3B: "qwen/qwen3.6-35b-a3b",
+    PromptingModels.QWEN_3_6_27B: "qwen/qwen3.6-27b",
+}
+
+
+def _extract_response_text(resp: Any) -> str | None:
+    '''Extracts plain text from OpenAI Responses/ChatCompletions style outputs.'''
+    text = getattr(resp, "output_text", None)
+    if isinstance(text, str) and text.strip():
+        return text
+
+    if isinstance(resp, dict):
+        data = resp
+    else:
+        try:
+            data = resp.to_dict() if hasattr(resp, "to_dict") else None
+        except Exception:
+            data = None
+
+    if not isinstance(data, dict):
+        return None
+
+    text = data.get("output_text")
+    if isinstance(text, str) and text.strip():
+        return text
+
+    output = data.get("output")
+    if isinstance(output, list):
+        chunks: List[str] = []
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            if isinstance(content, list):
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    part_text = part.get("text") or part.get("output_text")
+                    if isinstance(part_text, str) and part_text.strip():
+                        chunks.append(part_text)
+            item_text = item.get("text")
+            if isinstance(item_text, str) and item_text.strip():
+                chunks.append(item_text)
+        if chunks:
+            return "\n".join(chunks).strip()
+
+    choices = data.get("choices")
+    if isinstance(choices, list):
+        chunks: List[str] = []
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            message = choice.get("message")
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                chunks.append(content)
+            elif isinstance(content, list):
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    part_text = part.get("text")
+                    if isinstance(part_text, str) and part_text.strip():
+                        chunks.append(part_text)
+        if chunks:
+            return "\n".join(chunks).strip()
+
+    return None
 
 class LLMAction(BaseModel):
     '''
@@ -307,7 +402,7 @@ def parse_llm_triplet(text: str) -> Tuple[str, str, dict]:
 
 async def call_llm(
     prompt: str,
-    model: str,
+    model: PromptingModels,
     url: str|None = None,
     api_key: str|None = None,
     headers: Dict[str, str]|None = None,
@@ -319,7 +414,7 @@ async def call_llm(
     Args:
         prompt (str): The formatted prompt containing telemetry, constraints, and examples.
         api_key (str): The OpenAI API key for authentication.
-        model (str, optional): The name of the LLM model to use (default: "gpt-4.1").
+        model (PromptingModels): The name of the LLM model to use (default: "gpt-4.1").
         temperature (float, optional): Sampling temperature to control output randomness (default: 0.5).
         request_id (str | None, optional): An optional identifier for logging purposes.
     Returns:
@@ -331,26 +426,24 @@ async def call_llm(
         HTTPException: If API key is missing, SDK is unavailable, or response parsing fails.
     '''
 
-    client = OpenAI(api_key=api_key, base_url=url, default_headers=headers)
+    model_name = model.get_model_name()
+
+    client = OpenAI(api_key=api_key, base_url=url, default_headers=headers, timeout=120)
 
     #log before LLM call
     prompt_len = len(prompt) if isinstance(prompt, str) else 0
     log.info("[req=%s] LLM request start model=%s temp=%.2f prompt_len=%d",
-             request_id, model, temperature, prompt_len)
+             request_id, model_name, temperature, prompt_len)
     t0 = time.perf_counter()
 
     try:
         resp = client.responses.create(
-            model=model,
+            model=model_name,
             input=prompt,
             temperature=temperature,
         )
-        text = getattr(resp, "output_text", None)
-        if not text:
-            try:
-                text = resp.to_dict().get("output_text")
-            except Exception:
-                text = None
+        
+        text = _extract_response_text(resp)
 
         if not text or not isinstance(text, str) or len(text.strip()) == 0:
             dt = (time.perf_counter() - t0) * 1000

@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from core import Result, Unit              
-from level_design import build_prompt, call_llm, LLMPlan
+from level_design import build_prompt, call_llm, LLMPlan, PromptingModels
 from configuration import FastApiConfiguration
 import keypoint_notification
 
@@ -274,7 +274,7 @@ class ApiServer:
                 # 5) Build prompt and call LLM
                 cfg = self._load_local_config()
                 api_key = cfg["Llm"].get("ApiKey", "")
-                model = cfg["Llm"].get("Model", "gpt-4.1")
+                model = PromptingModels(cfg["Llm"].get("Model"))
                 url = cfg["Llm"].get("Url", "")
                 headers = cfg["Llm"].get("Headers", {})
                 temperature = float(cfg["Llm"].get("Temperature", 0.5))
@@ -283,9 +283,18 @@ class ApiServer:
 
                 self._logger.keypoint("Prompt for directive built. Calling LLM to get strategic directive...", event_type=keypoint_notification.EventTypes.INFO)
 
-                llm_res = await call_llm(prompt, url=url, api_key=api_key, model=model, temperature=temperature, headers=headers, request_id=request_id)
+                llm_res = await call_llm(
+                    prompt,
+                    url=url,
+                    api_key=api_key,
+                    model=model,
+                    temperature=temperature,
+                    headers=headers,
+                    request_id=request_id,
+                )
                 if llm_res.is_err():
                     self._logger.error("[req=%s] LLM error: %s", request_id, llm_res.message)
+                    self._logger.keypoint(f"Failed to get directive from LLM: {llm_res.message}", event_type=keypoint_notification.EventTypes.FAILURE)
                     return Result.err(llm_res.message).__dict__
 
                 plan, narrative, directive = llm_res.value
