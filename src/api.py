@@ -6,6 +6,7 @@ import json
 import logging
 import argparse
 import os
+import re
 import threading
 import time
 import uuid
@@ -21,6 +22,7 @@ import uvicorn
 from core import Result, Unit              
 from level_design import build_prompt, call_llm, LLMPlan, PromptingModels
 from configuration import FastApiConfiguration
+from engagement_strategies import ENGAGEMENT_STRATEGIES
 import keypoint_notification
 
 
@@ -415,6 +417,38 @@ class ApiServer:
             lines.append(f"- {self._format_coeff_line(action.target, action.mode, action.value)}")
         return "\n".join(lines).strip()
 
+    @staticmethod
+    def _expand_engagement_strategy_tags(directive: str) -> str:
+        '''
+        Replaces engagement strategy tags with explicit strategy descriptions.
+        Example: [ENGAGEMENT_STRATEGY:ADD_POISON]
+        '''
+        pattern = r'\[ENGAGEMENT_STRATEGY:([^\]]+)\]'
+
+        def _replace(match: re.Match[str]) -> str:
+            keys = [k.strip() for k in match.group(1).split(',') if k.strip()]
+            resolved: List[str] = []
+            unresolved: List[str] = []
+
+            for key in keys:
+                description = ENGAGEMENT_STRATEGIES.get(key)
+                if description:
+                    resolved.append(f"{key}: {description}")
+                else:
+                    unresolved.append(key)
+
+            if not resolved and not unresolved:
+                return ""
+
+            parts: List[str] = []
+            if resolved:
+                parts.append("Engagement strategies -> " + " | ".join(resolved))
+            if unresolved:
+                parts.append("Unknown strategies -> " + ", ".join(unresolved))
+            return " ".join(parts)
+
+        return re.sub(pattern, _replace, directive)
+
     def _send_directive_to_overseer(self, directive: str) -> Result[Unit]:
         '''
         Sends the strategic directive to the Code Overseer service.
@@ -429,11 +463,12 @@ class ApiServer:
         overseer_endpoint = cfg.get("CodeOverseerEndpoint", "").strip()
         if not overseer_endpoint:
             return Result.err("Code Overseer Endpoint is not configured.")
+        directive_for_overseer = self._expand_engagement_strategy_tags(directive)
 
         try:
             response = requests.post(
                 f"{overseer_endpoint}",
-                json={ "ChangeStrategicDescription": f"{directive}" },
+                json={"ChangeStrategicDescription": directive_for_overseer},
                 timeout=5000
             )
             if response.status_code == 200:

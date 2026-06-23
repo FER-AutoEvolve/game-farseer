@@ -17,6 +17,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, ValidationError
 from fastapi import HTTPException
 from core import Result, Unit
+from engagement_strategies import ENGAGEMENT_STRATEGIES
 
 try:
     from openai import OpenAI  # OpenAI Python SDK v1.x
@@ -305,16 +306,6 @@ def build_prompt(
         ],
     }
 
-    available_engagement_strategies = {
-        "MOVING_WALLS":"Add moving walls that shift to any neighbouring position every 2 seconds to increase unpredictability.",
-        "POWER_UP_BLUE":"Introduce power-up tiles (colored blue) that gives 2 points in the score when collected and grows the snake by 2 body parts.",
-        "POWER_UP_YELLOW":"Produce power-up tiles (colored yellow) that increase the snake speed temporarily.",
-        "ADD_POISON":"Add poison tiles that spawn (colored red) and shrink the snake by 2 units and decrease the score by 2 upon contact, increasing risk.",
-        "REVERSE_SNAKE":"Implement a special tile (colored purple) that reverses the snake's direction upon contact. Its head becomes its tail and vice versa.",
-        "SOOTHING_FOOD":"Place soothing food items (colored light green) that slow down the snake speed temporarily when collected, allowing for more precise navigation.",
-        "DISSAPEARING_WALLS":"Incorporate disappearing walls (colored cyan) that vanish for 30 seconds every 10 seconds, creating temporary safe zones or hazards.",
-    }
-
     header = (
         "You are a creative but bounded level designer for a Snake game.\n"
         "There are no 'lives'-a session ends by success (time/food target) or failure (wall, self, timeout).\n"
@@ -348,7 +339,7 @@ def build_prompt(
         "current_config": current_config,
         "limits": limits,
         "allowed_targets": list(constraints["targets"].keys()),
-        "engagement_strategies": available_engagement_strategies,
+        "engagement_strategies": ENGAGEMENT_STRATEGIES,
         "notes": [
             "Decide objective from telemetry.",
             "Use derived metrics if present (food_per_min, completion).",
