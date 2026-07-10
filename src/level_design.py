@@ -54,6 +54,7 @@ class PromptingModels(Enum):
     GEMMA_4_26B_A4B_QAT = "gemma_4_26b_a4b_qat"
     QWEN_3_6_35B_A3B = "qwen_3_6_35b_a3b"
     QWEN_3_6_27B = "qwen_3_6_27b"
+    NEMOTRON_3_SUPER = "nemotron_3_super"
 
     def get_model_name(self) -> str:
         '''Returns the default model name for the given provider.'''
@@ -69,6 +70,7 @@ _DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
     PromptingModels.GEMMA_4_26B_A4B_QAT: "google/gemma-4-26b-a4b-qat",
     PromptingModels.QWEN_3_6_35B_A3B: "qwen/qwen3.6-35b-a3b",
     PromptingModels.QWEN_3_6_27B: "qwen/qwen3.6-27b",
+    PromptingModels.NEMOTRON_3_SUPER: "nemotron/nemotron-3-super",
 }
 
 
