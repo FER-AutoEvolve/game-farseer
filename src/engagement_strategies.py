@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 ENGAGEMENT_STRATEGIES: dict[str, str] = {
-    "MOVING_WALLS": "Add moving walls that shift to any neighbouring position every 2 seconds to increase unpredictability.",
+    "MOVING_WALLS": "Add moving walls that shift to any neighbouring position every 2 seconds to increase unpredictability. Don't spawn the walls where the snake is currently located or at the snake's spawning location.",
     "POWER_UP_BLUE": "Introduce power-up tiles (colored blue) that gives 2 points in the score when collected and grows the snake by 2 body parts.",
     "POWER_UP_YELLOW": "Produce power-up tiles (colored yellow) that increase the snake speed temporarily.",
     "ADD_POISON": "Add poison tiles that spawn (colored red) and shrink the snake by 2 units and decrease the score by 2 upon contact, increasing risk.",
