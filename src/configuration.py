@@ -55,3 +55,37 @@ class KeypointNotificationConfiguration:
             ))
         except ValueError as e:
             return Result.err(f"Invalid keypoint notification configuration: {e}")
+
+
+@dataclasses.dataclass(frozen=True)
+class ExperimentNotificationConfiguration:
+    ''' Configuration for the experiment notification system.'''
+    enabled: bool
+    endpoint: str
+    component_name: str
+
+    @staticmethod
+    def from_dict(config: dict) -> Result['ExperimentNotificationConfiguration']:
+        '''
+        Creates an ExperimentNotificationConfiguration object from a dictionary.
+        Args:
+            config (dict): Dictionary containing configuration data.
+        Returns:
+            Result[ExperimentNotificationConfiguration]: Result containing the ExperimentNotificationConfiguration object or an error.
+        '''
+        try:
+            enabled = config.get("Enabled", True)
+            endpoint = config.get("Endpoint", "")
+            component_name = config.get("ComponentName", "")
+            if not endpoint:
+                return Result.err("ExperimentNotification configuration requires 'Endpoint' to be set.")
+            if not component_name:
+                return Result.err("ExperimentNotification configuration requires 'ComponentName' to be set.")
+
+            return Result.ok(ExperimentNotificationConfiguration(
+                enabled=enabled,
+                endpoint=endpoint,
+                component_name=component_name
+            ))
+        except ValueError as e:
+            return Result.err(f"Invalid experiment notification configuration: {e}")

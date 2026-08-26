@@ -17,5 +17,10 @@
         "Headers": {
             ${LLM_HEADERS}
         }
+    },
+    "ExperimentNotification": {
+        "Enabled": ${EXPERIMENT_NOTIFICATION_ENABLED},
+        "Endpoint": "${EXPERIMENT_NOTIFICATION_ENDPOINT}",
+        "ComponentName": "${EXPERIMENT_NOTIFICATION_COMPONENT_NAME}"
     }
 }

@@ -24,6 +24,7 @@ from level_design import build_prompt, call_llm, LLMPlan, PromptingModels
 from configuration import FastApiConfiguration
 from engagement_strategies import ENGAGEMENT_STRATEGIES
 import keypoint_notification
+import experiment_notification
 
 
 def to_pascal_case(s: str) -> str:
@@ -508,6 +509,12 @@ if __name__ == "__main__":
     else:
         keypoint_notification.configure_keypoint_notifier(keypoint_notification_config.value)
 
+    experiment_notification_config = experiment_notification.ExperimentNotificationConfiguration.from_dict(config_obj.get("ExperimentNotification", {}))
+    if experiment_notification_config.is_err():
+        logging.warning("ExperimentNotification config error: %s", experiment_notification_config.message)
+    else:
+        experiment_notification.configure_experiment_notifier(experiment_notification_config.value)
+
     server = ApiServer(fastapi_config)
     server._config_path = args.config  # save for reference
 
@@ -517,6 +524,7 @@ if __name__ == "__main__":
     if result.is_err():
         print(f"Failed to start API server: {result.message}")
 
+    logging.getLogger().experiment("API server started.", event_type=experiment_notification.ExperimentEventTypes.INFO)
     server.wait_for_server_to_stop()
 
     logging.info("Server has stopped.")
