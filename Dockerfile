@@ -33,7 +33,7 @@ ARG HOST=0.0.0.0 \
     KEYPOINT_NOTIFICATION_ENABLED="true" \
     KEYPOINT_NOTIFICATION_ENDPOINT="http://game-web-wrapper:8001/notify-of-event" \
     EXPERIMENT_NOTIFICATION_ENABLED="true" \
-    EXPERIMENT_NOTIFICATION_ENDPOINT="http://experiment-director:8002/track-event" \
+    EXPERIMENT_NOTIFICATION_ENDPOINT="http://experiment-director:8002/notify" \
     EXPERIMENT_NOTIFICATION_COMPONENT_NAME="GAME_FARSEER"
 
 # Set environment variables for substitution
