@@ -1,6 +1,7 @@
 import dataclasses
 import datetime
 import enum
+import json
 import logging
 import threading
 from typing import Any, Dict
@@ -50,6 +51,29 @@ class ExperimentEventTypes(enum.Enum):
     FAILURE = "FAILURE"
     SUCCESS = "SUCCESS"
     INFO = "INFO"
+
+
+def _json_default(value: Any) -> str:
+    '''
+    Safe fallback serializer for event payloads.
+    '''
+    if isinstance(value, datetime.datetime):
+        return value.isoformat()
+    if isinstance(value, enum.Enum):
+        return str(value.value)
+    return str(value)
+
+
+def format_experiment_event_message(event_name: str, payload: Optional[Dict[str, Any]] = None) -> str:
+    '''
+    Formats experiment event messages as either:
+    - EVENT_NAME
+    - EVENT_NAME { ...json payload... }
+    '''
+    if payload is None:
+        return event_name
+
+    return f"{event_name} {json.dumps(payload, default=_json_default)}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -154,4 +178,5 @@ __all__ = [
     "ExperimentNotificationConfiguration",
     "ExperimentNotifier",
     "configure_experiment_notifier",
+    "format_experiment_event_message",
 ]

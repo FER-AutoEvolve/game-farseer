@@ -209,6 +209,13 @@ class ApiServer:
             request_id = str(uuid.uuid4())[:8]
             t0 = time.perf_counter()
             self._logger.info("[req=%s] suggest-level start", request_id)
+            self._logger.experiment(
+                experiment_notification.format_experiment_event_message(
+                    "REQ_TO_FARSEER_RECEIVED",
+                    {"telemetry_payload": dataclasses.asdict(t)}
+                ),
+                event_type=experiment_notification.ExperimentEventTypes.INFO,
+            )
             self._logger.keypoint("Received game telemetry for level suggestion. Preparing prompt for directive...", event_type=keypoint_notification.EventTypes.INFO)
             try:
                 # 1) Calculate level duration
@@ -284,6 +291,13 @@ class ApiServer:
                 timeout_seconds = float(cfg["Llm"].get("TimeoutSeconds", 120.0))
 
                 prompt = build_prompt(telemetry_summary, current_config, limits)
+                self._logger.experiment(
+                    experiment_notification.format_experiment_event_message(
+                        "USER_STORY_PROMPT_SENT",
+                        {"prompt": prompt}
+                    ),
+                    event_type=experiment_notification.ExperimentEventTypes.INFO,
+                )
 
                 self._logger.keypoint("Prompt for directive built. Calling LLM to get strategic directive...", event_type=keypoint_notification.EventTypes.INFO)
 
@@ -300,9 +314,29 @@ class ApiServer:
                 if llm_res.is_err():
                     self._logger.error("[req=%s] LLM error: %s", request_id, llm_res.message)
                     self._logger.keypoint(f"Failed to get directive from LLM: {llm_res.message}", event_type=keypoint_notification.EventTypes.FAILURE)
+                    self._logger.experiment(
+                        experiment_notification.format_experiment_event_message(
+                            "COMPLETED",
+                            {
+                                "status": "FAILURE",
+                                "message": f"Failed to get directive from LLM: {llm_res.message}",
+                            }
+                        ),
+                        event_type=experiment_notification.ExperimentEventTypes.FAILURE,
+                    )
                     return Result.err(llm_res.message).__dict__
 
-                plan, narrative, directive = llm_res.value
+                plan, narrative, directive, llm_metadata = llm_res.value
+                self._logger.experiment(
+                    experiment_notification.format_experiment_event_message(
+                        "USER_STORY_PROMPT_RESPONSE",
+                        {
+                            "tokens": llm_metadata.get("tokens"),
+                            "response_text": llm_metadata.get("response_text"),
+                        }
+                    ),
+                    event_type=experiment_notification.ExperimentEventTypes.INFO,
+                )
                 self._logger.info("[req=%s] plan objective=%s actions=%d",
                                     request_id, plan.objective, len(plan.actions))
                 
@@ -331,11 +365,28 @@ class ApiServer:
                 overseer_configured = bool(cfg.get("CodeOverseerConfigured", True))
                 
                 self._logger.keypoint("Sending the strategic directive to Code Overseer...", event_type=keypoint_notification.EventTypes.INFO)
+                self._logger.experiment(
+                    experiment_notification.format_experiment_event_message(
+                        "REQ_TO_OVERSEER_SENT",
+                        {"payload": {"ChangeStrategicDescription": self._expand_engagement_strategy_tags(directive)}}
+                    ),
+                    event_type=experiment_notification.ExperimentEventTypes.INFO,
+                )
 
                 overseer_result = self._send_directive_to_overseer(directive)
                 if overseer_result.is_err():
                     if overseer_configured:
                         self._logger.warning(f"Failed to send directive to Code Overseer: {overseer_result.message}")
+                        self._logger.experiment(
+                            experiment_notification.format_experiment_event_message(
+                                "COMPLETED",
+                                {
+                                    "status": "FAILURE",
+                                    "message": f"Failed to send directive to Code Overseer: {overseer_result.message}",
+                                }
+                            ),
+                            event_type=experiment_notification.ExperimentEventTypes.FAILURE,
+                        )
                         return Result.err(f"Failed to send directive to Code Overseer: {overseer_result.message}").__dict__
                     else:
                         self._logger.warning("[req=%s] Overseer optional, continuing: %s", request_id, overseer_result.message)
@@ -355,10 +406,30 @@ class ApiServer:
             
                 dt = (time.perf_counter() - t0) * 1000
                 self._logger.info("[req=%s] suggest-level ok -> %s (%.1f ms)", request_id, new_id, dt)
+                self._logger.experiment(
+                    experiment_notification.format_experiment_event_message(
+                        "COMPLETED",
+                        {
+                            "status": "SUCCESS",
+                            "message": f"Suggested level {new_id} in {dt:.1f} ms",
+                        }
+                    ),
+                    event_type=experiment_notification.ExperimentEventTypes.SUCCESS,
+                )
                 return Result.ok(payload).__dict__
 
             except Exception as e:
                 self._logger.exception("[req=%s] Unhandled error in /suggest-level", request_id)
+                self._logger.experiment(
+                    experiment_notification.format_experiment_event_message(
+                        "COMPLETED",
+                        {
+                            "status": "FAILURE",
+                            "message": f"Unexpected error: {e}",
+                        }
+                    ),
+                    event_type=experiment_notification.ExperimentEventTypes.FAILURE,
+                )
                 return Result.err(f"Unexpected error: {e}").__dict__
 
 
@@ -524,8 +595,16 @@ if __name__ == "__main__":
     if result.is_err():
         print(f"Failed to start API server: {result.message}")
 
-    logging.getLogger().experiment("API server started.", event_type=experiment_notification.ExperimentEventTypes.INFO)
+    logging.getLogger().experiment(
+        experiment_notification.format_experiment_event_message("COMPONENT_START"),
+        event_type=experiment_notification.ExperimentEventTypes.INFO,
+    )
     server.wait_for_server_to_stop()
+
+    logging.getLogger().experiment(
+        experiment_notification.format_experiment_event_message("COMPONENT_STOP"),
+        event_type=experiment_notification.ExperimentEventTypes.INFO,
+    )
 
     logging.info("Server has stopped.")
     logging.info("Exiting application.")

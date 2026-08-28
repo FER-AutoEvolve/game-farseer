@@ -91,6 +91,30 @@ def log_token_usage(logger: logging.Logger, response: object, provider_name: str
     )
 
 
+def extract_token_usage(response: object) -> Dict[str, int | None]:
+    '''
+    Extract token usage details from an LLM response object.
+    '''
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return {
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
+            "cached_input_tokens": None,
+        }
+
+    input_details = getattr(usage, "input_tokens_details", None)
+    cached_tokens = getattr(input_details, "cached_tokens", None) if input_details is not None else None
+
+    return {
+        "input_tokens": getattr(usage, "input_tokens", None),
+        "output_tokens": getattr(usage, "output_tokens", None),
+        "total_tokens": getattr(usage, "total_tokens", None),
+        "cached_input_tokens": cached_tokens,
+    }
+
+
 def _extract_response_text(resp: Any) -> str | None:
     '''Extracts plain text from OpenAI Responses/ChatCompletions style outputs.'''
     text = getattr(resp, "output_text", None)
@@ -419,7 +443,7 @@ async def call_llm(
     temperature: float = 0.5,
     timeout_seconds: float = 120.0,
     request_id: str | None = None,
-) -> Result[tuple[LLMPlan, str, str]]:
+) -> Result[tuple[LLMPlan, str, str, Dict[str, Any]]]:
     '''
     Sends the prepared prompt to the LLM via the OpenAI API and returns the parsed result.
     Args:
@@ -429,10 +453,11 @@ async def call_llm(
         temperature (float, optional): Sampling temperature to control output randomness (default: 0.5).
         request_id (str | None, optional): An optional identifier for logging purposes.
     Returns:
-        tuple[LLMPlan, str, str]: A tuple containing:
+        tuple[LLMPlan, str, str, Dict[str, Any]]: A tuple containing:
             - plan (LLMPlan): The validated action plan with difficulty objective and actions.
             - narrative (str): The explanatory narrative section.
             - directive (str): A concise instruction summarizing the adjustment goal.
+            - metadata (Dict[str, Any]): Raw response text and token usage.
     Raises:
         HTTPException: If API key is missing, SDK is unavailable, or response parsing fails.
     '''
@@ -455,6 +480,7 @@ async def call_llm(
             temperature=temperature,
         )
         log_token_usage(log, resp, provider_name=f"model={model.value} ({model_name})")
+        token_usage = extract_token_usage(resp)
         
         text = _extract_response_text(resp)
 
@@ -471,7 +497,11 @@ async def call_llm(
         log.info("[req=%s] LLM ok objective=%s actions=%d out_len=%d (%.1f ms)",
                  request_id, plan.objective, len(plan.actions), out_len, dt)
         
-        return Result.ok((plan, narrative, directive))
+        metadata = {
+            "response_text": text,
+            "tokens": token_usage,
+        }
+        return Result.ok((plan, narrative, directive, metadata))
 
     except (json.JSONDecodeError, ValidationError, ValueError) as e:
         dt = (time.perf_counter() - t0) * 1000
