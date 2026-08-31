@@ -46,7 +46,8 @@ WallPattern = Literal["random", "letter"]                    # Allowed styles fo
 
 class PromptingModels(Enum):
     ''' Enumeration of supported LLM providers.'''
-    OPENAI = "openai"
+    OPENAI-GPT-4_1 = "openai-gpt-4_1"
+    OPENAI-GPT-5 = "openai-gpt-5"
     GPT_OSS_20B = "gpt_oss_20b"
     GPT_OSS_120B = "gpt_oss_120b"
     QWEN_CODER_30B = "qwen_coder_30b"
@@ -62,7 +63,8 @@ class PromptingModels(Enum):
 
 
 _DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
-    PromptingModels.OPENAI: "gpt-4.1",
+    PromptingModels.OPENAI-GPT-4_1: "gpt-4.1",
+    PromptingModels.OPENAI-GPT-5: "gpt-5",
     PromptingModels.GPT_OSS_20B: "openai/gpt-oss-20b",
     PromptingModels.GPT_OSS_120B: "openai/gpt-oss-120b",
     PromptingModels.QWEN_CODER_30B: "qwen/qwen-coder-30b",
@@ -72,6 +74,7 @@ _DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
     PromptingModels.QWEN_3_6_27B: "qwen/qwen3.6-27b",
     PromptingModels.NEMOTRON_3_SUPER: "nemotron/nemotron-3-super",
 }
+
 
 
 def log_token_usage(logger: logging.Logger, response: object, provider_name: str) -> None:
