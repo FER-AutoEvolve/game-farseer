@@ -61,6 +61,34 @@ class PromptingModels(Enum):
         '''Returns the default model name for the given provider.'''
         return _DEFAULT_PROMPTING_MODELS.get(self)
 
+    def coalesce_compatible_options(self, *, temperature: float | None = None) -> Tuple[Dict[str, Any], List[str]]:
+        '''Returns API options supported by this model and a list of dropped options.'''
+        options: Dict[str, Any] = {}
+        dropped: List[str] = []
+
+        unsupported = _UNSUPPORTED_RESPONSE_OPTIONS.get(self, set())
+        if temperature is not None:
+            if "temperature" in unsupported:
+                dropped.append("temperature")
+            else:
+                options["temperature"] = temperature
+
+        return options, dropped
+
+    @classmethod
+    def from_model_name(cls, model_name: str) -> "PromptingModels":
+        '''Resolves a provider enum from either its enum value or its underlying model name.'''
+        try:
+            return cls(model_name)
+        except ValueError:
+            pass
+
+        for provider, name in _DEFAULT_PROMPTING_MODELS.items():
+            if name == model_name:
+                return provider
+
+        raise ValueError(f"'{model_name}' is not a valid PromptingModels")
+
 
 _DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
     PromptingModels.OPENAI_GPT_4_1: "gpt-4.1",
@@ -73,6 +101,10 @@ _DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
     PromptingModels.QWEN_3_6_35B_A3B: "qwen/qwen3.6-35b-a3b",
     PromptingModels.QWEN_3_6_27B: "qwen/qwen3.6-27b",
     PromptingModels.NEMOTRON_3_SUPER: "nemotron/nemotron-3-super",
+}
+
+_UNSUPPORTED_RESPONSE_OPTIONS: Dict[PromptingModels, set[str]] = {
+    PromptingModels.OPENAI_GPT_5: {"temperature"},
 }
 
 
@@ -477,11 +509,21 @@ async def call_llm(
     t0 = time.perf_counter()
 
     try:
-        resp = client.responses.create(
-            model=model_name,
-            input=prompt,
-            temperature=temperature,
-        )
+        request_kwargs: Dict[str, Any] = {
+            "model": model_name,
+            "input": prompt,
+        }
+        compatible_options, dropped_options = model.coalesce_compatible_options(temperature=temperature)
+        request_kwargs.update(compatible_options)
+        if dropped_options:
+            log.info(
+                "[req=%s] dropped unsupported response options for model=%s: %s",
+                request_id,
+                model_name,
+                ",".join(dropped_options),
+            )
+
+        resp = client.responses.create(**request_kwargs)
         log_token_usage(log, resp, provider_name=f"model={model.value} ({model_name})")
         token_usage = extract_token_usage(resp)
         
