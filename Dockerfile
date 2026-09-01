@@ -5,7 +5,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install substenv (for environment variable substitution)
-RUN apt-get update && apt-get install -y gettext-base curl
+RUN apt-get update && apt-get install -y gettext-base
 
 # Copy requirements and install Python dependencies
 COPY ./requirements.txt /app/requirements.txt
