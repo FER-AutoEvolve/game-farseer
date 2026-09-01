@@ -276,7 +276,7 @@ class ApiServer:
                 # 5) Build prompt and call LLM
                 cfg = self._load_local_config()
                 api_key = cfg["Llm"].get("ApiKey", "")
-                model = PromptingModels(cfg["Llm"].get("Model"))
+                model = PromptingModels.from_model_name(cfg["Llm"].get("Model"))
                 url = cfg["Llm"].get("Url", "")
                 headers = cfg["Llm"].get("Headers", {})
                 temperature = float(cfg["Llm"].get("Temperature", 0.5))
