@@ -195,7 +195,7 @@ class ApiServer:
             Returns:
                 dict: { "status": "healthy" }
             '''
-            return Result.ok({"status": "healthy"}).__dict__
+            return {"status": "healthy"}
 
         @self._app.post("/suggest-level")
         async def _suggest_level(t: Telemetry = Body(...)):
