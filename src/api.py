@@ -295,14 +295,14 @@ class ApiServer:
                 "wall_blocks": {"min": 0, "max": 30, "delta_min": -8, "delta_max": 8},
             }
 
-            # 5) Build prompt and call LLM
-            cfg = self._load_local_config()
-            api_key = cfg["Llm"].get("ApiKey", "")
-            model = PromptingModels(cfg["Llm"].get("Model"))
-            url = cfg["Llm"].get("Url", "")
-            headers = cfg["Llm"].get("Headers", {})
-            temperature = float(cfg["Llm"].get("Temperature", 0.5))
-            timeout_seconds = float(cfg["Llm"].get("TimeoutSeconds", 120.0))
+                # 5) Build prompt and call LLM
+                cfg = self._load_local_config()
+                api_key = cfg["Llm"].get("ApiKey", "")
+                model = PromptingModels.from_model_name(cfg["Llm"].get("Model"))
+                url = cfg["Llm"].get("Url", "")
+                headers = cfg["Llm"].get("Headers", {})
+                temperature = float(cfg["Llm"].get("Temperature", 0.5))
+                timeout_seconds = float(cfg["Llm"].get("TimeoutSeconds", 120.0))
 
             prompt = build_prompt(telemetry_summary, current_config, limits)
             self._logger.keypoint("Prompt for directive built. Calling LLM to get strategic directive...", event_type=keypoint_notification.EventTypes.INFO)
