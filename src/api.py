@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import dataclasses
 import datetime
 import enum
@@ -200,14 +201,13 @@ class ApiServer:
         @self._app.post("/suggest-level")
         async def _suggest_level(t: Telemetry = Body(...)):
             '''
-            Suggests a new game level based on telemetry and LLM recommendations.
+            Triggers level suggestion pipeline asynchronously.
             Args:
                 t (Telemetry): Telemetry data sent from the game client.
             Returns:
-                dict: Suggested new level data including objective and narrative.
+                dict: Trigger acknowledgement.
             '''
             request_id = str(uuid.uuid4())[:8]
-            t0 = time.perf_counter()
             self._logger.info("[req=%s] suggest-level start", request_id)
             self._logger.experiment(
                 experiment_notification.format_experiment_event_message(
@@ -216,154 +216,169 @@ class ApiServer:
                 ),
                 event_type=experiment_notification.ExperimentEventTypes.INFO,
             )
-            self._logger.keypoint("Received game telemetry for level suggestion. Preparing prompt for directive...", event_type=keypoint_notification.EventTypes.INFO)
+            self._logger.keypoint("Received game telemetry for level suggestion. Triggering async processing...", event_type=keypoint_notification.EventTypes.INFO)
+
+            worker = threading.Thread(
+                target=self._run_suggest_level_trigger,
+                args=(t, request_id),
+                daemon=True,
+                name=f"suggest-level-{request_id}",
+            )
+            worker.start()
+
+            return {
+                "status": "accepted",
+                "request_id": request_id,
+                "message": "suggest-level processing triggered",
+            }
+
+    def _run_suggest_level_trigger(self, t: Telemetry, request_id: str) -> None:
+        try:
+            asyncio.run(self._process_suggest_level_request(t, request_id))
+        except Exception:
+            self._logger.exception("[req=%s] Background trigger execution failed", request_id)
+
+    async def _process_suggest_level_request(self, t: Telemetry, request_id: str) -> None:
+        t0 = time.perf_counter()
+        try:
+            # 1) Calculate level duration
             try:
-                # 1) Calculate level duration
-                try:
-                    duration_sec = max(
-                        0.0,
-                        (t.end_time - t.start_time).total_seconds()
-                        if isinstance(t.end_time, datetime.datetime) and isinstance(t.start_time, datetime.datetime)
-                        else 0.0,
-                    )
-                except Exception:
-                    duration_sec = 0.0
+                duration_sec = max(
+                    0.0,
+                    (t.end_time - t.start_time).total_seconds()
+                    if isinstance(t.end_time, datetime.datetime) and isinstance(t.start_time, datetime.datetime)
+                    else 0.0,
+                )
+            except Exception:
+                duration_sec = 0.0
 
-                session_len_sec = duration_sec
+            session_len_sec = duration_sec
 
-                food_per_min = None
-                if session_len_sec and session_len_sec > 0:
-                    if t.total_food_collected:
-                        food_per_min = 60.0 * float(t.total_food_collected) / float(session_len_sec)
-                    elif t.average_time_to_food and t.average_time_to_food > 0:
-                        food_per_min = 60.0 / float(t.average_time_to_food)
+            food_per_min = None
+            if session_len_sec and session_len_sec > 0:
+                if t.total_food_collected:
+                    food_per_min = 60.0 * float(t.total_food_collected) / float(session_len_sec)
+                elif t.average_time_to_food and t.average_time_to_food > 0:
+                    food_per_min = 60.0 / float(t.average_time_to_food)
 
-                # 2) Map telemetry for LLM
-                telemetry_summary = {
-                    "death_reason": t.death_cause.value if t.death_cause else None,
-                    "duration_sec": duration_sec,
-                    "success": t.is_level_successfully_completed,
-                    "score": t.score,
-                    "food_collected": t.total_food_collected,
-                    "avg_time_between_food_sec": t.average_time_to_food,
-                    "food_per_min": food_per_min,                       # NOVO
-                    "food_completion_ratio": t.food_completion_ratio,   # NOVO (property)
-                    "max_food_available": t.max_food_available,         # NOVO
-                    "turn_frequency": t.turn_frequency,
-                    "total_turns": t.total_turns,
-                    "total_distance_traveled": t.total_distance_traveled,
-                    "path_efficiency": t.path_efficiency,
-                    "user_rated_difficulty": t.user_rated_difficulty,                # NOVO
-                    "is_food_next_to_wall_at_death": t.is_food_next_to_wall_at_death, # NOVO
-                    "average_riskiness": t.average_riskiness,              # NOVO
-                    "best_food_directness": t.best_food_directness,        # NOVO
-                }
+            # 2) Map telemetry for LLM
+            telemetry_summary = {
+                "death_reason": t.death_cause.value if t.death_cause else None,
+                "duration_sec": duration_sec,
+                "success": t.is_level_successfully_completed,
+                "score": t.score,
+                "food_collected": t.total_food_collected,
+                "avg_time_between_food_sec": t.average_time_to_food,
+                "food_per_min": food_per_min,
+                "food_completion_ratio": t.food_completion_ratio,
+                "max_food_available": t.max_food_available,
+                "turn_frequency": t.turn_frequency,
+                "total_turns": t.total_turns,
+                "total_distance_traveled": t.total_distance_traveled,
+                "path_efficiency": t.path_efficiency,
+                "user_rated_difficulty": t.user_rated_difficulty,
+                "is_food_next_to_wall_at_death": t.is_food_next_to_wall_at_death,
+                "average_riskiness": t.average_riskiness,
+                "best_food_directness": t.best_food_directness,
+            }
 
-                global current_engagement_strategies
-                # 3) Current config
-                current_config = {
-                    "snake_speed": t.snake_speed,
-                    "obstacles_count": t.obstacles_count,
-                    "food_position": (t.food_position.value if t.food_position else "normal"),
-                    "wall_pattern": (t.wall_pattern.value if t.wall_pattern else "random"),
-                    "wall_blocks": t.wall_blocks,
-                    "level_tile_map": t.level_tile_map,
-                    "current_engagement_strategies": current_engagement_strategies, 
-                }
+            global current_engagement_strategies
+            # 3) Current config
+            current_config = {
+                "snake_speed": t.snake_speed,
+                "obstacles_count": t.obstacles_count,
+                "food_position": (t.food_position.value if t.food_position else "normal"),
+                "wall_pattern": (t.wall_pattern.value if t.wall_pattern else "random"),
+                "wall_blocks": t.wall_blocks,
+                "level_tile_map": t.level_tile_map,
+                "current_engagement_strategies": current_engagement_strategies,
+            }
 
-                # 4) Limits
-                limits = {
-                    "snake_speed": {"min": 0.6, "max": 2.0, "rel_min": 0.85, "rel_max": 1.15},
-                    "obstacles_count": {"min": 0, "max": 30, "delta_min": -3, "delta_max": 3},
-                    # nova polja
-                    "food_position": {"enum": ["normal", "near_wall", "far_from_wall"]},
-                    "wall_pattern": {"enum": ["random", "letter"]},
-                    "wall_blocks": {"min": 0, "max": 30, "delta_min": -8, "delta_max": 8},
-                }
+            # 4) Limits
+            limits = {
+                "snake_speed": {"min": 0.6, "max": 2.0, "rel_min": 0.85, "rel_max": 1.15},
+                "obstacles_count": {"min": 0, "max": 30, "delta_min": -3, "delta_max": 3},
+                "food_position": {"enum": ["normal", "near_wall", "far_from_wall"]},
+                "wall_pattern": {"enum": ["random", "letter"]},
+                "wall_blocks": {"min": 0, "max": 30, "delta_min": -8, "delta_max": 8},
+            }
 
-                # 5) Build prompt and call LLM
-                cfg = self._load_local_config()
-                api_key = cfg["Llm"].get("ApiKey", "")
-                model = PromptingModels.from_model_name(cfg["Llm"].get("Model"))
-                url = cfg["Llm"].get("Url", "")
-                headers = cfg["Llm"].get("Headers", {})
-                temperature = float(cfg["Llm"].get("Temperature", 0.5))
-                timeout_seconds = float(cfg["Llm"].get("TimeoutSeconds", 120.0))
+            # 5) Build prompt and call LLM
+            cfg = self._load_local_config()
+            api_key = cfg["Llm"].get("ApiKey", "")
+            model = PromptingModels.from_model_name(cfg["Llm"].get("Model"))
+            url = cfg["Llm"].get("Url", "")
+            headers = cfg["Llm"].get("Headers", {})
+            temperature = float(cfg["Llm"].get("Temperature", 0.5))
+            timeout_seconds = float(cfg["Llm"].get("TimeoutSeconds", 120.0))
 
-                prompt = build_prompt(telemetry_summary, current_config, limits)
+            prompt = build_prompt(telemetry_summary, current_config, limits)
+            self._logger.experiment(
+                experiment_notification.format_experiment_event_message(
+                    "USER_STORY_PROMPT_SENT",
+                    {"prompt": prompt}
+                ),
+                event_type=experiment_notification.ExperimentEventTypes.INFO,
+            )
+            self._logger.keypoint("Prompt for directive built. Calling LLM to get strategic directive...", event_type=keypoint_notification.EventTypes.INFO)
+
+            llm_res = await call_llm(
+                prompt,
+                url=url,
+                api_key=api_key,
+                model=model,
+                temperature=temperature,
+                timeout_seconds=timeout_seconds,
+                headers=headers,
+                request_id=request_id,
+            )
+            if llm_res.is_err():
+                self._logger.error("[req=%s] LLM error: %s", request_id, llm_res.message)
+                self._logger.keypoint(f"Failed to get directive from LLM: {llm_res.message}", event_type=keypoint_notification.EventTypes.FAILURE)
                 self._logger.experiment(
                     experiment_notification.format_experiment_event_message(
-                        "USER_STORY_PROMPT_SENT",
-                        {"prompt": prompt}
-                    ),
-                    event_type=experiment_notification.ExperimentEventTypes.INFO,
-                )
-
-                self._logger.keypoint("Prompt for directive built. Calling LLM to get strategic directive...", event_type=keypoint_notification.EventTypes.INFO)
-
-                llm_res = await call_llm(
-                    prompt,
-                    url=url,
-                    api_key=api_key,
-                    model=model,
-                    temperature=temperature,
-                    timeout_seconds=timeout_seconds,
-                    headers=headers,
-                    request_id=request_id,
-                )
-                if llm_res.is_err():
-                    self._logger.error("[req=%s] LLM error: %s", request_id, llm_res.message)
-                    self._logger.keypoint(f"Failed to get directive from LLM: {llm_res.message}", event_type=keypoint_notification.EventTypes.FAILURE)
-                    self._logger.experiment(
-                        experiment_notification.format_experiment_event_message(
-                            "COMPLETED",
-                            {
-                                "status": "FAILURE",
-                                "message": f"Failed to get directive from LLM: {llm_res.message}",
-                            }
-                        ),
-                        event_type=experiment_notification.ExperimentEventTypes.FAILURE,
-                    )
-                    return Result.err(llm_res.message).__dict__
-
-                plan, narrative, directive, llm_metadata = llm_res.value
-                self._logger.experiment(
-                    experiment_notification.format_experiment_event_message(
-                        "USER_STORY_PROMPT_RESPONSE",
+                        "COMPLETED",
                         {
-                            "tokens": llm_metadata.get("tokens"),
-                            "response_text": llm_metadata.get("response_text"),
+                            "status": "FAILURE",
+                            "message": f"Failed to get directive from LLM: {llm_res.message}",
                         }
                     ),
-                    event_type=experiment_notification.ExperimentEventTypes.INFO,
+                    event_type=experiment_notification.ExperimentEventTypes.FAILURE,
                 )
-                self._logger.info("[req=%s] plan objective=%s actions=%d",
-                                    request_id, plan.objective, len(plan.actions))
-                
-                current_engagement_strategies = []
-                import re
-                # Find the engagement strategies in the directive by finding the pattern [ENGAGEMENT_STRATEGY:<strategy_key>,<strategy_key>,...]
-                selected_engagement_strategies = re.findall(r'\[ENGAGEMENT_STRATEGY:([^\]]+)\]', directive)
-                if selected_engagement_strategies:
-                    # Split the strategies by comma and strip whitespace
-                    for strategy_list in selected_engagement_strategies:
-                        strategies = [s.strip() for s in strategy_list.split(',')]
-                        current_engagement_strategies.extend(strategies)
+                return
 
-                self._logger.keypoint(f"LLM call completed. Received the following directive: {directive}", event_type=keypoint_notification.EventTypes.SUCCESS)
+            plan, narrative, directive, llm_metadata = llm_res.value
+            self._logger.experiment(
+                experiment_notification.format_experiment_event_message(
+                    "USER_STORY_PROMPT_RESPONSE",
+                    {
+                        "tokens": llm_metadata.get("tokens"),
+                        "response_text": llm_metadata.get("response_text"),
+                    }
+                ),
+                event_type=experiment_notification.ExperimentEventTypes.INFO,
+            )
+            self._logger.info("[req=%s] plan objective=%s actions=%d", request_id, plan.objective, len(plan.actions))
 
-                # 6) Append coefficients
-                narrative_with_coeffs = self._append_coeffs_to_narrative(narrative, plan)
+            current_engagement_strategies = []
+            selected_engagement_strategies = re.findall(r'\[ENGAGEMENT_STRATEGY:([^\]]+)\]', directive)
+            if selected_engagement_strategies:
+                for strategy_list in selected_engagement_strategies:
+                    strategies = [s.strip() for s in strategy_list.split(',')]
+                    current_engagement_strategies.extend(strategies)
 
-                # 7) Level IDs
-                based_on = t.current_level_id or "unknown"
-                new_id = t.next_level_id or (f"{based_on}-next" if based_on != "unknown" else "next")
+            self._logger.keypoint(f"LLM call completed. Received the following directive: {directive}", event_type=keypoint_notification.EventTypes.SUCCESS)
 
-                # 8) Send directive to Code Overseer (if configured)
-                cfg = self._load_local_config()
-                print(cfg)
-                overseer_configured = bool(cfg.get("CodeOverseerConfigured", True))
-                
+            # Preserve summary generation for logs/consumers that may parse keypoint streams.
+            narrative_with_coeffs = self._append_coeffs_to_narrative(narrative, plan)
+
+            based_on = t.current_level_id or "unknown"
+            new_id = t.next_level_id or (f"{based_on}-next" if based_on != "unknown" else "next")
+
+            # 6) Send directive to Code Overseer (if configured)
+            cfg = self._load_local_config()
+            overseer_configured = bool(cfg.get("CodeOverseerConfigured", True))
+            if overseer_configured:
                 self._logger.keypoint("Sending the strategic directive to Code Overseer...", event_type=keypoint_notification.EventTypes.INFO)
                 self._logger.experiment(
                     experiment_notification.format_experiment_event_message(
@@ -418,19 +433,18 @@ class ApiServer:
                 )
                 return Result.ok(payload).__dict__
 
-            except Exception as e:
-                self._logger.exception("[req=%s] Unhandled error in /suggest-level", request_id)
-                self._logger.experiment(
-                    experiment_notification.format_experiment_event_message(
-                        "COMPLETED",
-                        {
-                            "status": "FAILURE",
-                            "message": f"Unexpected error: {e}",
-                        }
-                    ),
-                    event_type=experiment_notification.ExperimentEventTypes.FAILURE,
-                )
-                return Result.err(f"Unexpected error: {e}").__dict__
+        except Exception as e:
+            self._logger.exception("[req=%s] Unhandled error in background suggest-level processing", request_id)
+            self._logger.experiment(
+                experiment_notification.format_experiment_event_message(
+                    "COMPLETED",
+                    {
+                        "status": "FAILURE",
+                        "message": f"Unexpected error: {e}",
+                    }
+                ),
+                event_type=experiment_notification.ExperimentEventTypes.FAILURE,
+            )
 
 
 
