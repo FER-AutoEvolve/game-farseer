@@ -48,6 +48,7 @@ class PromptingModels(Enum):
     ''' Enumeration of supported LLM providers.'''
     OPENAI_GPT_4_1 = "openai_gpt_4_1"
     OPENAI_GPT_5 = "openai_gpt_5"
+    OPENAI_GPT_6_LUNA = "openai_gpt_6_luna"
     OPENAI_GPT_5_MINI = "openai_gpt_5_mini"
     OPENAI_GPT_5_NANO = "openai_gpt_5_nano"
     GPT_OSS_20B = "gpt_oss_20b"
@@ -95,6 +96,7 @@ class PromptingModels(Enum):
 _DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
     PromptingModels.OPENAI_GPT_4_1: "gpt-4.1",
     PromptingModels.OPENAI_GPT_5: "gpt-5",
+    PromptingModels.OPENAI_GPT_6_LUNA: "gpt-6-luna",
     PromptingModels.OPENAI_GPT_5_MINI: "gpt-5-mini",
     PromptingModels.OPENAI_GPT_5_NANO: "gpt-5-nano",
     PromptingModels.GPT_OSS_20B: "openai/gpt-oss-20b",
@@ -109,6 +111,7 @@ _DEFAULT_PROMPTING_MODELS: Dict[PromptingModels, str] = {
 
 _UNSUPPORTED_RESPONSE_OPTIONS: Dict[PromptingModels, set[str]] = {
     PromptingModels.OPENAI_GPT_5: {"temperature"},
+    PromptingModels.OPENAI_GPT_6_LUNA: {"temperature"},
     PromptingModels.OPENAI_GPT_5_MINI: {"temperature"},
     PromptingModels.OPENAI_GPT_5_NANO: {"temperature"},
 }
